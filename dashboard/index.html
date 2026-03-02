@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Dashboard Indicateurs Académiques</title>
+
+    <link rel="stylesheet" href="styles.css">
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+
+        /* Dark theme */
+        .dark { background-color: #1a1a1a; color: #ffffff; }
+
+        .dark .bg-white       { background-color: #2d2d2d !important; }
+        .dark .bg-gray-50     { background-color: #2d2d2d !important; }
+        .dark .bg-gray-100    { background-color: #3d3d3d !important; }
+        .dark .bg-blue-100    { background-color: #1e3a5f !important; }
+        .dark .bg-red-100     { background-color: #3a1e1e !important; }
+        .dark .bg-orange-100  { background-color: #3a2a1e !important; }
+        .dark .bg-yellow-100  { background-color: #3a3a1e !important; }
+        .dark .bg-green-100   { background-color: #1e3a2f !important; }
+        .dark .bg-teal-100    { background-color: #1e3a3a !important; }
+        .dark .bg-purple-100  { background-color: #2e1a3a !important; }
+        .dark .bg-indigo-100  { background-color: #1e2a3a !important; }
+
+        .dark .border         { border-color: #4d4d4d !important; }
+        .dark .border-r       { border-right-color:  #4d4d4d !important; }
+        .dark .border-b       { border-bottom-color: #4d4d4d !important; }
+        .dark .divide-y > * + * { border-top-color: #4d4d4d !important; }
+
+        .dark .text-gray-800  { color: #ffffff !important; }
+        .dark .text-gray-700  { color: #e0e0e0 !important; }
+        .dark .text-gray-600  { color: #b0b0b0 !important; }
+        .dark .text-gray-500  { color: #909090 !important; }
+        .dark .text-gray-900  { color: #e0e0e0 !important; }
+        .dark .text-red-800   { color: #f87171 !important; }
+        .dark .text-red-900   { color: #f87171 !important; }
+        .dark .text-orange-800 { color: #fb923c !important; }
+        .dark .text-orange-900 { color: #fb923c !important; }
+        .dark .text-yellow-800 { color: #facc15 !important; }
+        .dark .text-yellow-900 { color: #facc15 !important; }
+        .dark .text-green-800  { color: #34d399 !important; }
+        .dark .text-green-900  { color: #34d399 !important; }
+        .dark .text-blue-600   { color: #60a5fa !important; }
+        .dark .text-blue-700   { color: #3b82f6 !important; }
+        .dark .text-blue-900   { color: #60a5fa !important; }
+        .dark .text-purple-900 { color: #c084fc !important; }
+        .dark .text-indigo-900 { color: #818cf8 !important; }
+        .dark .text-teal-900   { color: #14b8a6 !important; }
+
+        .dark .hover\:bg-blue-700:hover { background-color: #1d4ed8 !important; }
+        .dark .hover\:bg-red-700:hover  { background-color: #b91c1c !important; }
+        .dark .hover\:text-blue-600:hover { color: #60a5fa !important; }
+
+        .dark select,
+        .dark input {
+            background-color: #3d3d3d !important;
+            color: #ffffff !important;
+            border-color: #4d4d4d !important;
+        }
+
+        
+        #ue-details-modal:not(.hidden),
+        #etudiant-modal:not(.hidden) {
+            display: flex;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 flex h-screen overflow-hidden">
+
+<!--  SIDEBAR  -->
+<aside id="sidebar"
+    class="w-64 bg-white border-r p-6 overflow-y-auto
+            fixed inset-y-0 left-0 z-50
+            transform -translate-x-full transition-transform duration-300 ease-in-out
+            md:translate-x-0 md:static md:inset-0">
+
+    <div class="flex justify-between items-center mb-6">
+        <h2 class="text-xl font-bold text-gray-800">Type d'analyse</h2>
+        <button id="close-sidebar" class="md:hidden p-2 text-gray-600 hover:text-gray-900"
+                aria-label="Fermer la barre latérale">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+        </button>
+    </div>
+
+    <div class="mb-6">
+        <label class="block text-sm font-semibold text-gray-600 mb-2">
+            Sélectionner l'analyse
+        </label>
+        <select id="analysis-type" class="w-full border rounded p-2 focus:ring-blue-500">
+            <option value="">Choisir…</option>
+            <option value="global" selected>Vue globale</option>
+            <option value="annee">Analyse par année</option>
+            <option value="semestre">Analyse par semestre</option>
+            <option value="cohorte">Analyse par cohorte</option>
+        </select>
+    </div>
+
+    <div id="dynamic-filters" class="space-y-4 text-sm text-gray-500">
+        <p class="text-center py-6">Sélectionnez un type d'analyse</p>
+    </div>
+
+    <div class="mt-6">
+        <button id="apply-filters"
+                class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg
+                    hover:bg-blue-700 font-semibold text-sm transition">
+            Appliquer
+        </button>
+    </div>
+
+    <hr class="my-6 border-gray-300">
+
+    <h2 class="text-xl font-bold text-gray-800 mb-4">Section Étudiant</h2>
+
+    <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-600 mb-2">
+            Rechercher un étudiant
+        </label>
+        <input id="search-etudiant" type="text" placeholder="Anonymat ou Carte"
+            class="w-full border rounded p-2" />
+        <button id="btn-search-etudiant"
+                class="mt-2 w-full px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium transition">
+            Rechercher
+        </button>
+    </div>
+
+    <div id="etudiant-details" class="mt-4 text-sm"></div>
+
+</aside>
+
+<div id="sidebar-overlay"
+    class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden md:hidden"></div>
+
+
+<main class="flex-1 flex flex-col overflow-hidden md:ml-0">
+
+    <!-- HEADER -->
+    <header class="bg-white border-b px-8 py-4 flex justify-between items-center">
+        <div class="flex items-center space-x-4">
+            <button id="menu-burger" class="md:hidden p-2 text-gray-600 hover:text-gray-900"
+                    aria-label="Ouvrir le menu">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 6h16M4 12h16M4 18h16"/>
+                </svg>
+            </button>
+            <h1 class="text-2xl font-bold text-blue-700">
+                Indicateurs Académiques
+                <span id="current-analysis-type"
+                    class="text-sm font-normal text-gray-600 ml-2"></span>
+            </h1>
+        </div>
+
+        <div class="flex items-center space-x-4">
+            <button id="theme-toggle-btn" class="p-2 text-gray-600 hover:text-blue-600"
+                    aria-label="Basculer le thème">
+                <svg id="theme-icon-light" class="w-6 h-6" fill="none" stroke="currentColor"
+                    viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 3v1m0 16v1m9-9h-1M4 12H3
+                            m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707
+                            m12.728 0l-.707.707M6.343 17.657l-.707.707
+                            M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+                </svg>
+                <svg id="theme-icon-dark" class="w-6 h-6 hidden" fill="none" stroke="currentColor"
+                    viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M20.354 15.354A9 9 0 018.646 3.646
+                            9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <section class="flex-1 overflow-y-auto p-8 space-y-8">
+
+        <div id="kpi-container" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-blue-100 p-6 rounded-xl">
+                <p class="text-sm text-blue-600 font-bold uppercase">Moyenne générale</p>
+                <p id="kpi-moyenne" class="text-3xl font-bold text-blue-900">—</p>
+            </div>
+            <div class="bg-green-100 p-6 rounded-xl">
+                <p class="text-sm text-green-600 font-bold uppercase">Taux de réussite</p>
+                <p id="kpi-reussite" class="text-3xl font-bold text-green-900">—%</p>
+            </div>
+            <div class="bg-gray-100 p-6 rounded-xl">
+                <p class="text-sm text-gray-600 font-bold uppercase">Nombre d'étudiants</p>
+                <p id="kpi-effectif" class="text-3xl font-bold text-gray-900">—</p>
+            </div>
+        </div>
+
+        <div id="stats-extra-container" class="grid grid-cols-1 md:grid-cols-3 gap-6 hidden">
+            <div class="bg-purple-100 p-6 rounded-xl">
+                <p class="text-sm text-purple-600 font-bold uppercase">Médiane</p>
+                <p id="kpi-mediane" class="text-3xl font-bold text-purple-900">—</p>
+            </div>
+            <div class="bg-indigo-100 p-6 rounded-xl">
+                <p class="text-sm text-indigo-600 font-bold uppercase">Écart-type</p>
+                <p id="kpi-std" class="text-3xl font-bold text-indigo-900">—</p>
+            </div>
+            <div class="bg-teal-100 p-6 rounded-xl">
+                <p class="text-sm text-teal-600 font-bold uppercase">Variance</p>
+                <p id="kpi-variance" class="text-3xl font-bold text-teal-900">—</p>
+            </div>
+        </div>
+
+        <div id="additional-charts"
+            class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+        </div>
+
+        <!--  Tableau UE ─ -->
+        <div class="bg-white rounded-xl border overflow-hidden">
+
+            <div class="p-6 border-b bg-gray-50">
+                <div class="flex items-center justify-between mb-3">
+                    <label class="block text-sm font-semibold text-gray-600">
+                        Unités d'Enseignement – Détails
+                    </label>
+                    <div id="ue-legend"></div>
+                </div>
+                <input type="text" id="ue-search"
+                    placeholder="Rechercher une UE…"
+                    class="w-full px-4 py-2 border rounded-lg
+                            focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    onkeyup="searchUEs()" />
+            </div>
+            <table class="w-full text-left">
+                <thead class="bg-gray-100 text-xs uppercase text-gray-600">
+                    <tr>
+                        <th class="p-4 cursor-pointer hover:bg-gray-200"
+                            onclick="sortUEs('ue')">
+                            UE <span id="sort-ue" class="ml-1"></span>
+                        </th>
+                        <th class="p-4 cursor-pointer hover:bg-gray-200"
+                            onclick="sortUEs('moyenne')">
+                            Moyenne <span id="sort-moyenne" class="ml-1"></span>
+                        </th>
+                        <th class="p-4 cursor-pointer hover:bg-gray-200"
+                            onclick="sortUEs('taux_reussite')">
+                            Réussite <span id="sort-taux_reussite" class="ml-1"></span>
+                        </th>
+                        <th class="p-4 cursor-pointer hover:bg-gray-200"
+                            onclick="sortUEs('effectif')">
+                            Effectif <span id="sort-effectif" class="ml-1"></span>
+                        </th>
+                        <th class="p-4">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="table-ue-body" class="divide-y"></tbody>
+            </table>
+
+            <div class="p-4 border-t flex justify-between items-center text-sm">
+                <span id="ue-count">0 UE</span>
+                <div class="flex space-x-2 items-center">
+                    <button id="prev-page" onclick="changePage(-1)"
+                            class="px-3 py-1 border rounded disabled:opacity-50">
+                        Précédent
+                    </button>
+                    <span>
+                        Page <span id="current-page">1</span> /
+                        <span id="total-pages">1</span>
+                    </span>
+                    <button id="next-page" onclick="changePage(1)"
+                            class="px-3 py-1 border rounded disabled:opacity-50">
+                        Suivant
+                    </button>
+                </div>
+            </div>
+
+        </div>
+
+    </section>
+</main>
+
+
+<!--  MODAL DÉTAILS UE  -->
+<div id="ue-details-modal"
+     class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div class="sticky top-0 bg-white border-b p-6 flex justify-between items-center">
+            <h2 class="text-xl font-bold text-gray-800">Détails de l'UE</h2>
+            <button onclick="closeUEDetails()"
+                    class="text-gray-500 hover:text-gray-700"
+                    aria-label="Fermer">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div id="ue-details-content" class="p-6">
+        </div>
+    </div>
+</div>
+
+
+<!--  MODAL PARCOURS ÉTUDIANT-->
+<div id="etudiant-modal"
+     class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-lg w-[28rem] max-h-[80vh] overflow-y-auto p-6 relative">
+        <button onclick="closeEtudiantModal()"
+                class="absolute top-3 right-3 text-gray-500 hover:text-gray-800 text-xl leading-none"
+                aria-label="Fermer">✕</button>
+        <div id="etudiant-modal-content"></div>
+    </div>
+</div>
+
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -19,7 +19,7 @@ Outil web de visualisation et d'analyse statistique des résultats académiques.
 ### Étape 1 — Récupérer le projet
 
 ```bash
-git clone https://github.com/L3pompier/epl-projet-analyse-flo
+git clone https://github.com/L3pompier/epl-projet-analyse-flo.git
 cd GoodAdmin
 ```
 

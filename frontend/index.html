@@ -1,0 +1,1345 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Academic Analytics Dashboard</title>
+    <link rel="stylesheet" href="css/tailwind.css">
+    <script src="assets/js/lucide.min.js"></script>
+    <link href="assets/fonts/fonts.css" rel="stylesheet">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body class="h-full font-sora antialiased text-gray-200 bg-deep">
+
+    <!-- Global Loader -->
+    <div id="global-loader">
+        <div class="sidebar-logo">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
+                <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
+                <path d="M6 12v5c3 3 9 3 12 0v-5" />
+            </svg>
+        </div>
+        <div class="flex items-center space-x-2">
+            <div class="w-2 h-2 bg-accent rounded-full animate-bounce"></div>
+            <div class="w-2 h-2 bg-accent rounded-full animate-bounce" style="animation-delay:.2s"></div>
+            <div class="w-2 h-2 bg-accent rounded-full animate-bounce" style="animation-delay:.4s"></div>
+        </div>
+    </div>
+
+    <div class="app-shell">
+
+        <!-- ═══════════════════════ SIDEBAR ═══════════════════════ -->
+        <aside class="sidebar expanded" id="sidebar">
+            <div class="sidebar-header flex items-center justify-between px-3 py-4 border-b border-white/5 mb-2">
+                <div class="sidebar-logo">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2">
+                        <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
+                        <path d="M6 12v5c3 3 9 3 12 0v-5" />
+                    </svg>
+                </div>
+                <button class="sidebar-toggle-btn" id="sidebarToggle">
+                    <i data-lucide="panel-left-close" id="toggleIcon"
+                        class="w-4 h-4 text-gray-400 hover:text-white transition-colors"></i>
+                </button>
+            </div>
+            <div class="nav-section-label">Navigation</div>
+            <div class="nav-item active" data-view="dashboard"><i data-lucide="layout-dashboard"></i><span
+                    class="nav-label">Vue Globale</span></div>
+            <div class="nav-item" data-view="dept"><i data-lucide="layers"></i><span
+                    class="nav-label">Département</span></div>
+            <div class="nav-item" data-view="filiere"><i data-lucide="git-branch"></i><span
+                    class="nav-label">Filière</span></div>
+            <div class="nav-item" data-view="ue"><i data-lucide="book-open"></i><span class="nav-label">Unités
+                    d'Ens.</span></div>
+            <div class="nav-item" data-view="students"><i data-lucide="users"></i><span
+                    class="nav-label">Étudiants</span></div>
+            <div class="nav-section-label" style="margin-top:8px;">Système</div>
+            <div class="nav-item" data-view="compare"><i data-lucide="bar-chart-2"></i><span
+                    class="nav-label">Comparaison</span></div>
+            <div class="nav-item" data-view="alerts">
+                <i data-lucide="bell"></i><span class="nav-label">Alertes</span>
+                <span id="badge-alerts-count"
+                    class="hidden absolute right-2 top-2 bg-danger text-[9px] font-bold px-1.5 py-0.5 rounded-full ring-2 ring-card">0</span>
+            </div>
+
+            <div class="mt-auto w-full p-2 border-t border-white/5 space-y-1">
+                <button id="sidebar-login-btn" onclick="ui.toggleLoginModal()"
+                    class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg bg-accent/5 border border-accent/10 text-accent hover:bg-accent/20 transition-all group">
+                    <i data-lucide="lock" class="w-4 h-4 shrink-0 transition-transform group-hover:scale-110"></i>
+                    <span class="nav-label text-[11px] font-bold uppercase tracking-wider">Administration</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- ═══════════════════════ MAIN ═══════════════════════════════════════ -->
+        <div class="main-area">
+
+            <!-- HEADER -->
+            <header class="top-header">
+                <!-- Vue active -->
+                <div class="header-title shrink-0" id="headerTitle">Academic <span>Analytics</span></div>
+
+                <!-- Zone de contexte : filtres actifs sous forme de chips -->
+                <div id="header-analysis"
+                    class="flex-1 flex items-center gap-2 px-4 mx-4 border-l border-white/5 overflow-hidden min-w-0">
+                    <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5 text-accent shrink-0"></i>
+                    <!-- Quand aucun filtre -->
+                    <span id="header-no-filter" class="text-[11px] text-gray-600 italic">Toutes données</span>
+                    <!-- Chips de filtres actifs, injectées par updateSummary -->
+                    <div id="header-filter-chips" class="flex items-center gap-1.5 flex-wrap overflow-hidden max-h-6">
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex items-center gap-1.5 shrink-0">
+                    <button onclick="ui.toggleFilterModal()" class="filter-chip shrink-0">
+                        <i data-lucide="filter" class="w-3.5 h-3.5"></i>
+                        <span id="active-filters-summary">Filtres</span>
+                    </button>
+                    <button onclick="app.refresh(true)" title="Rafraîchir"
+                        class="p-2 text-gray-400 hover:text-white bg-card2 border border-border rounded-lg transition-colors">
+                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                    </button>
+                    <button onclick="ui.toggleUploadModal()" title="Importer"
+                        class="p-2 text-gray-400 hover:text-white bg-card2 border border-border rounded-lg transition-colors">
+                        <i data-lucide="upload" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="app.exportPDF()" title="Export PDF"
+                        class="p-2 text-gray-400 hover:text-white bg-card2 border border-border rounded-lg transition-colors">
+                        <i data-lucide="file-text" class="w-4 h-4"></i>
+                    </button>
+                    <div class="flex items-center gap-2 border-l border-border pl-3 ml-1">
+                        <div class="status-dot" id="status-dot"></div>
+                        <span class="text-[11px] text-gray-400 font-medium hidden sm:inline"
+                            id="status-text">Live</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- ══════════════════ CONTENT ══════════════════════════════════ -->
+            <div class="content-scroll p-6 overflow-y-auto" id="main-content">
+
+
+                <!-- ╔═══════════════════════════════════════════════════════╗
+                     ║  VUE GLOBALE                                          ║
+                     ╚═══════════════════════════════════════════════════════╝ -->
+                <div id="view-dashboard" class="view-panel active space-y-6">
+
+                    <!-- KPIs -->
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                        <div class="kpi-card glass p-4 relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-accent"></div>
+                            <div class="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Moyenne
+                                Générale</div>
+                            <div id="kpi-moyenne" class="text-2xl font-bold text-white leading-none">--<span
+                                    class="kpi-unit text-xs ml-0.5 text-gray-500">/20</span></div>
+                            <div id="kpi-moyenne-trend" class="kpi-trend mt-2 text-[10px]">...</div>
+                        </div>
+                        <div class="kpi-card glass p-4 relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-green-500"></div>
+                            <div class="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Taux de
+                                Réussite</div>
+                            <div id="kpi-taux" class="text-2xl font-bold text-white leading-none">--<span
+                                    class="kpi-unit text-xs ml-0.5 text-gray-500">%</span></div>
+                            <div id="kpi-taux-trend" class="kpi-trend mt-2 text-[10px]">--</div>
+                        </div>
+                        <div class="kpi-card glass p-4 relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-purple-500"></div>
+                            <div class="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Médiane
+                            </div>
+                            <div id="kpi-mediane" class="text-2xl font-bold text-white leading-none">--<span
+                                    class="kpi-unit text-xs ml-0.5 text-gray-500">/20</span></div>
+                            <div class="text-[9px] text-gray-500 mt-2 italic">Note centrale</div>
+                        </div>
+                        <div class="kpi-card glass p-4 relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
+                            <div class="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Écart-type
+                            </div>
+                            <div id="kpi-std" class="text-2xl font-bold text-white leading-none">--</div>
+                            <div class="text-[9px] text-gray-500 mt-2 italic">Dispersion</div>
+                        </div>
+                        <div class="kpi-card glass p-4 relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-blue-400"></div>
+                            <div class="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Effectif
+                                Total</div>
+                            <div id="kpi-effectif" class="text-2xl font-bold text-white leading-none">--</div>
+                            <div class="text-[9px] text-gray-500 mt-2">Étudiants évalués</div>
+                        </div>
+                        <div class="kpi-card glass p-4 relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
+                            <div class="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">À Risque
+                            </div>
+                            <div id="kpi-risques" class="text-2xl font-bold text-red-500 leading-none">--</div>
+                        </div>
+                    </div>
+
+                    <!-- KPIs — rangée 2 : dispersion avancée -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div class="kpi-card glass p-3 relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-sky-400"></div>
+                            <div class="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-1">Variance (σ²)
+                            </div>
+                            <div id="kpi-variance" class="text-xl font-bold text-sky-300 leading-none">--</div>
+                            <div class="text-[9px] text-gray-500 mt-1.5 italic">Carré de l'écart-type</div>
+                        </div>
+                        <div class="kpi-card glass p-3 relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-teal-400"></div>
+                            <div class="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-1">1er Quartile
+                                (Q1)</div>
+                            <div id="kpi-q1" class="text-xl font-bold text-teal-300 leading-none">--<span
+                                    class="text-xs ml-0.5 text-gray-500">/20</span></div>
+                            <div class="text-[9px] text-gray-500 mt-1.5 italic">25 % des notes en dessous</div>
+                        </div>
+                        <div class="kpi-card glass p-3 relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-indigo-400"></div>
+                            <div class="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-1">3e Quartile
+                                (Q3)</div>
+                            <div id="kpi-q3" class="text-xl font-bold text-indigo-300 leading-none">--<span
+                                    class="text-xs ml-0.5 text-gray-500">/20</span></div>
+                            <div class="text-[9px] text-gray-500 mt-1.5 italic">75 % des notes en dessous</div>
+                        </div>
+                        <div class="kpi-card glass p-3 relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-fuchsia-400"></div>
+                            <div class="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-1">Étendue
+                                inter-Q (IQR)</div>
+                            <div id="kpi-iqr" class="text-xl font-bold text-fuchsia-300 leading-none">--<span
+                                    class="text-xs ml-0.5 text-gray-500"> pts</span></div>
+                            <div class="text-[9px] text-gray-500 mt-1.5 italic">Q3 − Q1 · 50 % central</div>
+                        </div>
+                    </div>
+
+                    <!-- Interprétation globale -->
+                    <div id="interpret-dashboard"></div>
+
+                    <!-- Figures row 1 -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                        <div class="glass-card p-4">
+                            <div class="flex justify-between items-center mb-3"><span
+                                    class="text-sm font-semibold">Boxplot Global</span></div>
+                            <div class="fig-wrap" id="fw-box"><img id="fig-box" alt="Boxplot">
+                                <div class="fig-loader" id="fl-box">
+                                    <div class="spin"></div><span
+                                        class="text-[9px] font-mono text-gray-600 uppercase">Chargement…</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="glass-card p-4">
+                            <div class="flex justify-between items-center mb-3"><span
+                                    class="text-sm font-semibold">Distribution des Notes</span></div>
+                            <div class="fig-wrap" id="fw-hist"><img id="fig-hist" alt="Histogram">
+                                <div class="fig-loader" id="fl-hist">
+                                    <div class="spin"></div><span
+                                        class="text-[9px] font-mono text-gray-600 uppercase">Chargement…</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Figures row 2 -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                        <div class="glass-card p-4">
+                            <div class="flex justify-between items-center mb-3"><span
+                                    class="text-sm font-semibold">Performance par Sexe</span></div>
+                            <div class="fig-wrap" id="fw-bysex"><img id="fig-bysex" alt="Boxplot sexe">
+                                <div class="fig-loader" id="fl-bysex">
+                                    <div class="spin"></div><span
+                                        class="text-[9px] font-mono text-gray-600 uppercase">Chargement…</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="glass-card p-4">
+                            <div class="flex justify-between items-center mb-3"><span class="text-sm font-semibold">Taux
+                                    de Réussite Global</span></div>
+                            <div class="fig-wrap" id="fw-valid"><img id="fig-valid" alt="Taux réussite global">
+                                <div class="fig-loader" id="fl-valid">
+                                    <div class="spin"></div><span
+                                        class="text-[9px] font-mono text-gray-600 uppercase">Chargement…</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Répartition réussite/échec pleine largeur -->
+                    <div class="glass-card p-4">
+                        <div class="flex justify-between items-center mb-3"><span
+                                class="text-sm font-semibold">Répartition Réussite / Échec</span></div>
+                        <div class="fig-wrap" id="fw-donut"><img id="fig-donut" alt="Donut">
+                            <div class="fig-loader" id="fl-donut">
+                                <div class="spin"></div><span
+                                    class="text-[9px] font-mono text-gray-600 uppercase">Chargement…</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Top / Bottom 10 — tableaux paginés -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                        <!-- Top 10 -->
+                        <div class="glass-card overflow-hidden">
+                            <div class="p-4 border-b border-white/5 flex items-center gap-2">
+                                <i data-lucide="trending-up" class="w-4 h-4 text-green-500"></i>
+                                <span class="text-sm font-semibold">Top 10 UE — Meilleur taux</span>
+                                <span class="fig-badge ml-auto">cliquer pour les détails</span>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="dash-table">
+                                    <thead>
+                                        <tr>
+                                            <th>UE</th>
+                                            <th>Sem.</th>
+                                            <th>Moy.</th>
+                                            <th>Réussite</th>
+                                            <th>Eff.</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="top10-tbody">
+                                        <tr>
+                                            <td colspan="5" class="text-center py-6 text-gray-600 italic text-xs">
+                                                Chargement…</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="px-4 py-3 border-t border-white/5" id="top10-pagination"></div>
+                        </div>
+                        <!-- Bottom 10 -->
+                        <div class="glass-card overflow-hidden">
+                            <div class="p-4 border-b border-white/5 flex items-center gap-2">
+                                <i data-lucide="trending-down" class="w-4 h-4 text-red-500"></i>
+                                <span class="text-sm font-semibold">Bottom 10 UE — Plus faible taux</span>
+                                <span class="fig-badge ml-auto">cliquer pour les détails</span>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="dash-table">
+                                    <thead>
+                                        <tr>
+                                            <th>UE</th>
+                                            <th>Sem.</th>
+                                            <th>Moy.</th>
+                                            <th>Réussite</th>
+                                            <th>Eff.</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="bottom10-tbody">
+                                        <tr>
+                                            <td colspan="5" class="text-center py-6 text-gray-600 italic text-xs">
+                                                Chargement…</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="px-4 py-3 border-t border-white/5" id="bottom10-pagination"></div>
+                        </div>
+                    </div>
+
+                    <!-- Étudiants à Risque -->
+                    <div class="glass-card overflow-hidden mt-5">
+                        <div class="p-4 border-b border-white/5 flex items-center gap-2">
+                            <i data-lucide="users" class="w-4 h-4 text-orange-500"></i>
+                            <span class="text-sm font-semibold">Étudiants à risque</span>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="dash-table">
+                                <thead>
+                                    <tr>
+                                        <th>Étudiant</th>
+                                        <th>Dépt.</th>
+                                        <th>Moy.</th>
+                                        <th>Statut</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="students-tbody">
+                                    <tr>
+                                        <td colspan="5" class="text-center py-6 text-gray-600 italic text-xs">
+                                            Chargement…</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="px-4 py-3 border-t border-white/5" id="students-pagination"></div>
+                    </div>
+
+                </div><!-- /view-dashboard -->
+
+
+                <!-- ╔═══════════════════════════════════════════════════════╗
+                     ║  VUE DÉPARTEMENT                                      ║
+                     ╚═══════════════════════════════════════════════════════╝ -->
+                <div id="view-dept" class="view-panel hidden space-y-6">
+
+                    <div class="dept-tab-bar" id="dept-tab-bar">
+                        <button class="dept-tab active" data-dept="GI"
+                            onclick="DeptView.switchDept('GI',this)">GI</button>
+                        <button class="dept-tab" data-dept="GM" onclick="DeptView.switchDept('GM',this)">GM</button>
+                        <button class="dept-tab" data-dept="GC" onclick="DeptView.switchDept('GC',this)">GC</button>
+                        <button class="dept-tab" data-dept="GE" onclick="DeptView.switchDept('GE',this)">GE</button>
+                    </div>
+
+                    <!-- KPIs département -->
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="mini-kpi">
+                            <div class="mini-kpi-label">Moyenne</div>
+                            <div class="mini-kpi-val text-accent" id="dept-kpi-moy">--</div>
+                        </div>
+                        <div class="mini-kpi">
+                            <div class="mini-kpi-label">Taux réussite</div>
+                            <div class="mini-kpi-val text-green-500" id="dept-kpi-taux">--</div>
+                        </div>
+                        <div class="mini-kpi">
+                            <div class="mini-kpi-label">Médiane</div>
+                            <div class="mini-kpi-val text-purple-300" id="dept-kpi-med">--</div>
+                        </div>
+                        <div class="mini-kpi">
+                            <div class="mini-kpi-label">Écart-type σ</div>
+                            <div class="mini-kpi-val text-amber-400" id="dept-kpi-std">--</div>
+                        </div>
+                        <div class="mini-kpi">
+                            <div class="mini-kpi-label">Q1 / Q3</div>
+                            <div class="mini-kpi-val text-teal-400" id="dept-kpi-q1q3">--</div>
+                        </div>
+                        <div class="mini-kpi">
+                            <div class="mini-kpi-label">IQR</div>
+                            <div class="mini-kpi-val text-fuchsia-400" id="dept-kpi-iqr">--</div>
+                        </div>
+                        <div class="mini-kpi">
+                            <div class="mini-kpi-label">UE enseignées</div>
+                            <div class="mini-kpi-val text-amber-400" id="dept-kpi-ue">--</div>
+                        </div>
+                        <div class="mini-kpi">
+                            <div class="mini-kpi-label">Effectif</div>
+                            <div class="mini-kpi-val text-blue-400" id="dept-kpi-eff">--</div>
+                        </div>
+                    </div>
+
+                    <!-- Interprétation département -->
+                    <div id="interpret-dept"></div>
+
+                    <!-- Figures -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                        <div class="glass-card p-4">
+                            <div class="flex justify-between items-center mb-3"><span
+                                    class="text-sm font-semibold">Radar comparatif Filières</span></div>
+                            <div class="fig-wrap" id="fw-radar"><img id="fig-radar" alt="Radar">
+                                <div class="fig-loader" id="fl-radar">
+                                    <div class="spin"></div><span
+                                        class="text-[9px] font-mono text-gray-600 uppercase">Chargement…</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="glass-card p-4">
+                            <div class="flex justify-between items-center mb-3"><span
+                                    class="text-sm font-semibold">Heatmap Filières × Semestres</span></div>
+                            <div class="fig-wrap" id="fw-hm-fil"><img id="fig-hm-fil" alt="Heatmap filière">
+                                <div class="fig-loader" id="fl-hm-fil">
+                                    <div class="spin"></div><span
+                                        class="text-[9px] font-mono text-gray-600 uppercase">Chargement…</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="glass-card p-4">
+                        <div class="flex justify-between items-center mb-3"><span
+                                class="text-sm font-semibold">Évolution par Cohorte</span></div>
+                        <div class="fig-wrap" id="fw-cohortes"><img id="fig-cohortes" alt="Cohortes">
+                            <div class="fig-loader" id="fl-cohortes">
+                                <div class="spin"></div><span
+                                    class="text-[9px] font-mono text-gray-600 uppercase">Chargement…</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Classement départements -->
+                    <div class="glass-card overflow-hidden">
+                        <div class="p-4 border-b border-white/5">
+                            <div class="view-section-title">Classement Départements
+                            </div>
+                        </div>
+                        <div class="p-5 space-y-3" id="dept-perf-bars">
+                            <div class="text-xs text-gray-600 italic">Chargement…</div>
+                        </div>
+                    </div>
+                </div><!-- /view-dept -->
+
+
+                <!-- ╔═══════════════════════════════════════════════════════╗
+                     ║  VUE FILIÈRE                                          ║
+                     ╚═══════════════════════════════════════════════════════╝ -->
+                <div id="view-filiere" class="view-panel hidden space-y-6">
+
+                    <!-- Navigation pills filières -->
+                    <div class="glass-card p-3 flex items-center gap-2 flex-wrap">
+                        <button onclick="FiliereView.prev()"
+                            class="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors shrink-0">
+                            <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                        </button>
+                        <div id="filiere-nav" class="flex gap-1.5 flex-wrap flex-1">
+                            <span class="text-xs text-gray-600 italic">Chargement des filières…</span>
+                        </div>
+                        <button onclick="FiliereView.next()"
+                            class="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors shrink-0">
+                            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    <!-- Titre filière active -->
+                    <div class="flex items-center gap-3">
+                        <span class="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Filière active
+                            :</span>
+                        <span class="text-sm font-bold text-accent font-mono" id="fil-current-name">--</span>
+                    </div>
+
+                    <!-- KPIs filière — (8 KPIs on 2 lines) -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div class="mini-kpi">
+                            <div class="mini-kpi-label">Département</div>
+                            <div class="mini-kpi-val text-accent text-lg" id="fil-kpi-dept">--</div>
+                        </div>
+                        <div class="mini-kpi">
+                            <div class="mini-kpi-label">Moyenne</div>
+                            <div class="mini-kpi-val text-green-500" id="fil-kpi-moy">--</div>
+                        </div>
+                        <div class="mini-kpi">
+                            <div class="mini-kpi-label">Taux réussite</div>
+                            <div class="mini-kpi-val text-blue-400" id="fil-kpi-taux">--</div>
+                        </div>
+                        <div class="mini-kpi">
+                            <div class="mini-kpi-label">Médiane (Q2)</div>
+                            <div class="mini-kpi-val text-gray-300" id="fil-kpi-med">--</div>
+                        </div>
+                        <div class="mini-kpi">
+                            <div class="mini-kpi-label">Écart-type σ</div>
+                            <div class="mini-kpi-val text-amber-400" id="fil-kpi-std">--</div>
+                        </div>
+                        <div class="mini-kpi">
+                            <div class="mini-kpi-label">Q1 / Q3</div>
+                            <div class="mini-kpi-val text-teal-400" id="fil-kpi-q1q3">--</div>
+                        </div>
+                        <div class="mini-kpi">
+                            <div class="mini-kpi-label">IQR</div>
+                            <div class="mini-kpi-val text-fuchsia-400" id="fil-kpi-iqr">--</div>
+                        </div>
+                        <div class="mini-kpi">
+                            <div class="mini-kpi-label">Effectif</div>
+                            <div class="mini-kpi-val text-purple-400" id="fil-kpi-eff">--</div>
+                        </div>
+                    </div>
+
+                    <!-- Interprétation filière -->
+                    <div id="interpret-filiere"></div>
+
+                    <!-- Figures -->
+                    <div class="grid grid-cols-1 gap-5">
+                        <div class="glass-card p-4">
+                            <div class="flex justify-between items-center mb-3"><span
+                                    class="text-sm font-semibold">Évolution Moyennes par Sexe</span></div>
+                            <div class="fig-wrap" id="fw-fil-sexevol"><img id="fig-fil-sexevol" alt="Courbe sexe">
+                                <div class="fig-loader" id="fl-fil-sexevol">
+                                    <div class="spin"></div><span
+                                        class="text-[9px] font-mono text-gray-600 uppercase">Chargement…</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="glass-card p-4">
+                            <div class="flex justify-between items-center mb-3"><span
+                                    class="text-sm font-semibold">Distribution par Sexe</span></div>
+                            <div class="fig-wrap" id="fw-fil-sex"><img id="fig-fil-sex" alt="Boxplot sexe">
+                                <div class="fig-loader" id="fl-fil-sex">
+                                    <div class="spin"></div><span
+                                        class="text-[9px] font-mono text-gray-600 uppercase">Chargement…</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tableau UE paginé -->
+                    <div class="glass-card overflow-hidden">
+                        <div class="p-4 border-b border-white/5">
+                            <div class="view-section-title">UE de la Filière <span
+                                    class="text-[9px] font-mono text-gray-600 normal-case tracking-normal">cliquer →
+                                    détail UE</span></div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="dash-table">
+                                <thead>
+                                    <tr>
+                                        <th>Code UE</th>
+                                        <th>Sem.</th>
+                                        <th>Crédits</th>
+                                        <th>Moy.</th>
+                                        <th>Réussite</th>
+                                        <th>Effectif</th>
+                                        <th>Statut</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="filiere-ue-tbody">
+                                    <tr>
+                                        <td colspan="7" class="text-center py-6 text-gray-600 italic text-xs">
+                                            Sélectionnez une filière</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="px-4 py-3 border-t border-white/5" id="filiere-ue-pagination"></div>
+                    </div>
+                </div><!-- /view-filiere -->
+
+
+                <!-- ╔═══════════════════════════════════════════════════════╗
+                     ║  VUE UE                                               ║
+                     ╚═══════════════════════════════════════════════════════╝ -->
+                <div id="view-ue" class="view-panel hidden space-y-6">
+
+                    <!-- Barre de recherche -->
+                    <div class="glass-card p-4" style="overflow:visible;">
+                        <div class="view-section-title">Recherche UE</div>
+                        <div class="relative" style="overflow:visible;">
+                            <i data-lucide="search"
+                                class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none"></i>
+                            <input type="text" id="ue-search-input" class="search-input"
+                                placeholder="Taper le code UE…  (ex: INF101, MAT, …)" autocomplete="off">
+                            <!-- Dropdown en position fixed — positionné par JS pour sortir de tout overflow -->
+                            <div id="ue-search-results" class="ue-dropdown hidden"></div>
+                        </div>
+                    </div>
+
+                    <!-- Top / Bottom UE cliquables -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                        <div class="glass-card overflow-hidden">
+                            <div class="p-4 border-b border-white/5 flex items-center gap-2">
+                                <i data-lucide="trending-up" class="w-4 h-4 text-green-500"></i>
+                                <span class="text-sm font-semibold">Top 10 — Meilleur taux</span>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="dash-table">
+                                    <thead>
+                                        <tr>
+                                            <th>UE</th>
+                                            <th>Sem.</th>
+                                            <th>Moy.</th>
+                                            <th>Réussite</th>
+                                            <th>Eff.</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="ue-top-tbody">
+                                        <tr>
+                                            <td colspan="5" class="text-center py-6 text-gray-600 italic text-xs">
+                                                Chargement…</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="glass-card overflow-hidden">
+                            <div class="p-4 border-b border-white/5 flex items-center gap-2">
+                                <i data-lucide="trending-down" class="w-4 h-4 text-red-500"></i>
+                                <span class="text-sm font-semibold">Bottom 10 — Plus faible taux</span>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="dash-table">
+                                    <thead>
+                                        <tr>
+                                            <th>UE</th>
+                                            <th>Sem.</th>
+                                            <th>Moy.</th>
+                                            <th>Réussite</th>
+                                            <th>Eff.</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="ue-bottom-tbody">
+                                        <tr>
+                                            <td colspan="5" class="text-center py-6 text-gray-600 italic text-xs">
+                                                Chargement…</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Panneau de détail UE  -->
+                    <div id="ue-detail-panel" class="hidden space-y-5">
+
+                        <!-- En-tête du panneau -->
+                        <div class="glass-card p-5 flex items-center gap-4 flex-wrap">
+                            <div
+                                class="w-12 h-12 rounded-xl bg-accent/20 border border-accent/30 flex items-center justify-center shrink-0">
+                                <i data-lucide="book-open" class="w-6 h-6 text-accent"></i>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-xl font-bold font-mono text-white" id="ue-detail-name">--</div>
+                                <div class="text-xs text-gray-500 mt-0.5">Unité d'Enseignement — données issues de <code
+                                        class="text-accent">/ues/{code}/stats</code></div>
+                            </div>
+                        </div>
+
+                        <!-- Alerte UE difficile -->
+                        <div id="ue-alert-box"
+                            class="hidden flex items-start gap-3 p-4 rounded-xl bg-red-500/8 border border-red-500/25">
+                            <i data-lucide="alert-triangle" class="w-5 h-5 text-red-500 shrink-0 mt-0.5"></i>
+                            <div>
+                                <div class="text-sm font-bold text-red-400 mb-1">UE en difficulté</div>
+                                <div class="text-xs text-gray-400">Moyenne &lt; 10 ET taux de réussite &lt; 50 % —
+                                    Attention particulière requise.</div>
+                            </div>
+                        </div>
+
+                        <!-- KPIs principaux (5 cartes) -->
+                        <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+                            <div class="mini-kpi">
+                                <div class="mini-kpi-label">Moyenne</div>
+                                <div class="mini-kpi-val text-accent" id="ue-kpi-moy">--</div>
+                            </div>
+                            <div class="mini-kpi">
+                                <div class="mini-kpi-label">Taux réussite</div>
+                                <div class="mini-kpi-val" id="ue-kpi-taux">--</div>
+                            </div>
+                            <div class="mini-kpi">
+                                <div class="mini-kpi-label">Médiane (Q2)</div>
+                                <div class="mini-kpi-val text-gray-300" id="ue-kpi-med">--</div>
+                            </div>
+                            <div class="mini-kpi">
+                                <div class="mini-kpi-label">Écart-type σ</div>
+                                <div class="mini-kpi-val text-amber-400" id="ue-kpi-std">--</div>
+                            </div>
+                            <div class="mini-kpi">
+                                <div class="mini-kpi-label">Variance σ²</div>
+                                <div class="mini-kpi-val text-orange-400" id="ue-kpi-var">--</div>
+                            </div>
+                            <div class="mini-kpi">
+                                <div class="mini-kpi-label">Q1 / Q3</div>
+                                <div class="mini-kpi-val text-teal-400" id="ue-kpi-q1q3">--</div>
+                            </div>
+                            <div class="mini-kpi">
+                                <div class="mini-kpi-label">IQR</div>
+                                <div class="mini-kpi-val text-fuchsia-400" id="ue-kpi-iqr">--</div>
+                            </div>
+                            <div class="mini-kpi">
+                                <div class="mini-kpi-label">Min / Max</div>
+                                <div class="mini-kpi-val text-blue-300" id="ue-kpi-minmax">--</div>
+                            </div>
+                            <div class="mini-kpi">
+                                <div class="mini-kpi-label">Effectif</div>
+                                <div class="mini-kpi-val text-amber-400" id="ue-kpi-eff">--</div>
+                            </div>
+                            <div class="mini-kpi">
+                                <div class="mini-kpi-label">Crédits ECTS</div>
+                                <div class="mini-kpi-val text-purple-400" id="ue-kpi-cred">--</div>
+                            </div>
+                            <div class="mini-kpi">
+                                <div class="mini-kpi-label">Semestre</div>
+                                <div class="mini-kpi-val text-blue-400" id="ue-kpi-sem">--</div>
+                            </div>
+                        </div>
+
+                        <!-- Barre de réussite -->
+                        <div class="glass-card p-4">
+                            <div class="flex justify-between items-center mb-2 text-xs text-gray-400">
+                                <span>Progression réussite</span>
+                                <span id="ue-kpi-taux-txt">-- %</span>
+                            </div>
+                            <div class="stat-bar-bg" style="height:10px;">
+                                <div class="stat-bar-fill" id="ue-taux-bar" style="width:0%; background:#6366f1;"></div>
+                            </div>
+                        </div>
+
+                        <!-- Statistiques étendues — grille 4 cols -->
+                        <div class="glass-card p-5">
+                            <div class="view-section-title">Statistiques Détaillées</div>
+                            <div class="ue-stat-grid">
+                                <div class="ue-stat-cell">
+                                    <div class="ue-stat-lbl">Note min.</div>
+                                    <div class="ue-stat-val text-red-400" id="ue-stat-min">--</div>
+                                </div>
+                                <div class="ue-stat-cell">
+                                    <div class="ue-stat-lbl">Note max.</div>
+                                    <div class="ue-stat-val text-green-400" id="ue-stat-max">--</div>
+                                </div>
+                                <div class="ue-stat-cell">
+                                    <div class="ue-stat-lbl">Médiane</div>
+                                    <div class="ue-stat-val text-purple-400" id="ue-stat-med">--</div>
+                                </div>
+                                <div class="ue-stat-cell">
+                                    <div class="ue-stat-lbl">Écart-type σ</div>
+                                    <div class="ue-stat-val text-amber-400" id="ue-stat-std">--</div>
+                                </div>
+                                <div class="ue-stat-cell">
+                                    <div class="ue-stat-lbl">Variance σ²</div>
+                                    <div class="ue-stat-val text-orange-400" id="ue-stat-var">--</div>
+                                </div>
+                                <div class="ue-stat-cell">
+                                    <div class="ue-stat-lbl">Nb admis</div>
+                                    <div class="ue-stat-val text-green-500" id="ue-stat-admis">--</div>
+                                </div>
+                                <div class="ue-stat-cell">
+                                    <div class="ue-stat-lbl">% admis</div>
+                                    <div class="ue-stat-val text-green-400" id="ue-stat-pct-adm">--</div>
+                                </div>
+                                <div class="ue-stat-cell">
+                                    <div class="ue-stat-lbl">Nb ajournés</div>
+                                    <div class="ue-stat-val text-red-500" id="ue-stat-ajournes">--</div>
+                                </div>
+                                <div class="ue-stat-cell">
+                                    <div class="ue-stat-lbl">% ajournés</div>
+                                    <div class="ue-stat-val text-red-400" id="ue-stat-pct-ajour">--</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Interprétation UE -->
+                        <div id="interpret-ue"></div>
+
+                        <!-- Figures de l'UE — 4 figures dont le donut -->
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                            <div class="glass-card p-4">
+                                <div class="flex justify-between items-center mb-3"><span
+                                        class="text-sm font-semibold">Répartition Réussite / Échec</span></div>
+                                <div class="fig-wrap" id="fw-ue-donut"><img id="fig-ue-donut" alt="Donut UE">
+                                    <div class="fig-loader" id="fl-ue-donut">
+                                        <div class="spin"></div><span
+                                            class="text-[9px] font-mono text-gray-600 uppercase">Chargement…</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="glass-card p-4">
+                                <div class="flex justify-between items-center mb-3"><span
+                                        class="text-sm font-semibold">Distribution des Notes</span></div>
+                                <div class="fig-wrap" id="fw-ue-hist"><img id="fig-ue-hist" alt="Histogram UE">
+                                    <div class="fig-loader" id="fl-ue-hist">
+                                        <div class="spin"></div><span
+                                            class="text-[9px] font-mono text-gray-600 uppercase">Chargement…</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="glass-card p-4">
+                                <div class="flex justify-between items-center mb-3"><span
+                                        class="text-sm font-semibold">Boxplot</span></div>
+                                <div class="fig-wrap" id="fw-ue-box"><img id="fig-ue-box" alt="Boxplot UE">
+                                    <div class="fig-loader" id="fl-ue-box">
+                                        <div class="spin"></div><span
+                                            class="text-[9px] font-mono text-gray-600 uppercase">Chargement…</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div><!-- /ue-detail-panel -->
+                </div><!-- /view-ue -->
+
+
+                <!-- ╔═══════════════════════════════════════════════════════╗
+                     ║  VUE ÉTUDIANTS                                        ║
+                     ╚═══════════════════════════════════════════════════════╝ -->
+                <div id="view-etudiant" class="view-panel hidden space-y-6">
+
+                    <div class="glass-card p-4">
+                        <div class="view-section-title">Recherche Étudiant</div>
+                        <div class="flex gap-3">
+                            <div class="relative flex-1">
+                                <i data-lucide="search"
+                                    class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none"></i>
+                                <input type="text" id="student-search-input" class="search-input"
+                                    placeholder="Matricule ou numéro de carte…"
+                                    onkeydown="if(event.key==='Enter') StudentView.load()">
+                            </div>
+                            <button onclick="StudentView.load()"
+                                class="px-4 py-2 bg-accent/20 border border-accent/40 text-accent hover:bg-accent/30 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2">
+                                <i data-lucide="search" class="w-4 h-4"></i> Charger
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Profil -->
+                    <div id="student-profile-wrap" class="hidden space-y-5">
+                        <div class="glass-card p-5 flex items-center gap-5 flex-wrap">
+                            <div id="student-avatar"
+                                class="w-14 h-14 rounded-full bg-gradient-to-br from-accent to-purple-500 flex items-center justify-center text-2xl font-bold text-white shrink-0">
+                                ?</div>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-lg font-bold text-white mb-1" id="student-name">--</div>
+                                <div class="text-xs text-gray-500 font-mono" id="student-meta">-- · -- · Cohorte --
+                                </div>
+                            </div>
+                            <div class="flex gap-2 flex-wrap" id="student-badges"></div>
+                        </div>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div class="mini-kpi">
+                                <div class="mini-kpi-label">Moyenne Globale</div>
+                                <div class="mini-kpi-val text-accent" id="etud-kpi-moy">--</div>
+                            </div>
+                            <div class="mini-kpi">
+                                <div class="mini-kpi-label">Crédits Validés / Total</div>
+                                <div class="mini-kpi-val text-green-500" id="etud-kpi-cred">--</div>
+                            </div>
+                            <div class="mini-kpi">
+                                <div class="mini-kpi-label">Taux Réussite</div>
+                                <div class="mini-kpi-val text-amber-400" id="etud-kpi-taux">--</div>
+                            </div>
+                            <div class="mini-kpi">
+                                <div class="mini-kpi-label">Rang Cohorte</div>
+                                <div class="flex items-baseline gap-1">
+                                    <div class="mini-kpi-val text-purple-400" id="etud-kpi-rang">--</div>
+                                    <span class="text-xs text-gray-500" id="etud-kpi-nb-cohorte"></span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="glass-card p-4">
+                            <div class="flex justify-between items-center mb-2 text-xs text-gray-400">
+                                <span>Progression crédits</span>
+                                <span id="etud-cred-pct">-- / --</span>
+                            </div>
+                            <div class="stat-bar-bg" style="height:10px;">
+                                <div class="stat-bar-fill" id="etud-cred-bar" style="width:0%;background:#6366f1;">
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Interprétation avant le parcours -->
+                        <div id="interpret-etudiant"></div>
+
+                        <!-- Courbe évolution vs cohorte -->
+                        <div class="glass-card p-4">
+                            <div class="flex justify-between items-center mb-3">
+                                <span class="text-sm font-semibold">Évolution — Étudiant vs Cohorte</span>
+
+                            </div>
+                            <div class="fig-wrap" id="fw-etud-cohorte">
+                                <img id="fig-etud-cohorte" alt="Évolution vs cohorte">
+                                <div class="fig-loader" id="fl-etud-cohorte">
+                                    <div class="spin"></div>
+                                    <span class="text-[9px] font-mono text-gray-600 uppercase">Chargement…</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="glass-card overflow-hidden">
+                            <div class="p-4 border-b border-white/5">
+                                <div class="view-section-title">Parcours Semestre par Semestre</div>
+                            </div>
+                            <div class="p-4 space-y-4" id="student-parcours-container"></div>
+                        </div>
+                    </div>
+
+                    <!-- Classement Cohorte -->
+                    <div class="glass-card overflow-hidden">
+                        <div class="p-4 border-b border-white/5 flex items-center justify-between">
+                            <div class="view-section-title mb-0">Classement de la Cohorte</div>
+                            <div class="flex gap-2">
+                                <span class="bdg bdg-purple">Top 3</span>
+                                <span class="bdg bdg-red">Ajournés</span>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="dash-table">
+                                <thead>
+                                    <tr>
+                                        <th class="w-16">Rang</th>
+                                        <th>Étudiant</th>
+                                        <th>Département</th>
+                                        <th>Moyenne</th>
+                                        <th>Statut</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="etudiant-risk-tbody">
+                                    <tr>
+                                        <td colspan="5" class="text-center py-6 text-gray-600 italic text-xs">Recherchez
+                                            un étudiant pour voir ses camarades à risque…</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <div id="etudiant-risk-pagination" class="px-4 py-2 border-t border-white/5"></div>
+                        </div>
+                    </div>
+                </div><!-- /view-etudiant -->
+
+
+                <!-- ╔═══════════════════════════════════════════════════════╗
+                     ║  VUE ALERTES                                          ║
+                     ╚═══════════════════════════════════════════════════════╝ -->
+                <!-- ╔═══════════════════════════════════════════════════════╗
+                     ║  VUE COMPARAISON                                      ║
+                     ╚═══════════════════════════════════════════════════════╝ -->
+                <div id="view-compare" class="view-panel hidden space-y-5">
+
+                    <!-- Sélecteur de type -->
+                    <div class="glass-card p-4 flex flex-wrap items-center gap-4">
+                        <div class="flex gap-2">
+                            <button data-cmp-type="filiere"
+                                class="cmp-type-btn cmp-active px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors">Filières</button>
+                            <button data-cmp-type="departement"
+                                class="cmp-type-btn px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors">Départements</button>
+                            <button data-cmp-type="ue"
+                                class="cmp-type-btn px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors">UE</button>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <input id="cmp-search" type="text" placeholder="Rechercher et ajouter…"
+                                class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-accent/50" />
+                        </div>
+                        <button id="cmp-compare-btn"
+                            class="px-4 py-1.5 text-xs font-bold rounded-lg bg-accent/20 border border-accent/30 text-accent hover:bg-accent/30 transition-colors">
+                            Comparer
+                        </button>
+                        <button id="cmp-reset-btn"
+                            class="px-3 py-1.5 text-xs rounded-lg border border-white/10 text-gray-500 hover:text-white transition-colors">
+                            Réinitialiser
+                        </button>
+                    </div>
+
+                    <!-- Chips des entités sélectionnées -->
+                    <div id="cmp-chips" class="flex flex-wrap gap-2 min-h-[32px]"></div>
+
+                    <!-- Suggestions dropdown -->
+                    <div id="cmp-suggestions" class="glass-card hidden p-2 space-y-1 max-h-48 overflow-y-auto"></div>
+
+                    <!-- Résultats -->
+                    <div id="cmp-results" class="space-y-4">
+                        <div class="text-xs text-gray-600 italic text-center py-8">
+                            Sélectionnez des entités à comparer ci-dessus, puis cliquez sur <strong>Comparer</strong>.
+                        </div>
+                    </div>
+
+                </div><!-- /view-compare -->
+
+                <div id="view-alertes" class="view-panel hidden space-y-5">
+
+                    <!-- KPIs alertes -->
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="mini-kpi">
+                            <div class="mini-kpi-label">Étudiants à risque</div>
+                            <div class="mini-kpi-val text-red-500" id="alert-kpi-risque">--</div>
+                        </div>
+                        <div class="mini-kpi">
+                            <div class="mini-kpi-label">UE difficiles</div>
+                            <div class="mini-kpi-val text-amber-500" id="alert-kpi-difficile">--</div>
+                        </div>
+                        <div class="mini-kpi">
+                            <div class="mini-kpi-label">Taux réussite global</div>
+                            <div class="mini-kpi-val text-blue-400" id="alert-kpi-taux">--</div>
+                        </div>
+                        <div class="mini-kpi">
+                            <div class="mini-kpi-label">Moyenne globale</div>
+                            <div class="mini-kpi-val text-accent" id="alert-kpi-moy">--</div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <!-- Étudiants à risque -->
+                        <div class="glass-card overflow-hidden">
+                            <div class="p-4 border-b border-white/5 flex items-center gap-2">
+                                <i data-lucide="x-circle" class="w-4 h-4 text-red-500"></i>
+                                <span class="text-sm font-semibold">Étudiants à risque</span>
+                                <span class="fig-badge ml-auto">moyenne &lt; 10</span>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="dash-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Étudiant</th>
+                                            <th>Moyenne</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="alerts-risk-tbody">
+                                        <tr>
+                                            <td colspan="3" class="text-center py-6 text-gray-600 italic text-xs">
+                                                Chargement…</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                                <div id="alerts-risk-pagination" class="px-3 py-2"></div>
+                            </div>
+                        </div>
+                        <!-- UE difficiles paginées -->
+                        <div class="glass-card overflow-hidden">
+                            <div class="p-4 border-b border-white/5 flex items-center gap-2">
+                                <i data-lucide="book-x" class="w-4 h-4 text-amber-500"></i>
+                                <span class="text-sm font-semibold">UE Difficiles</span>
+                                <span class="fig-badge ml-auto">taux &lt; 50% ET moy &lt; 10</span>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="dash-table">
+                                    <thead>
+                                        <tr>
+                                            <th>UE</th>
+                                            <th>Sem.</th>
+                                            <th>Moy.</th>
+                                            <th>Réussite</th>
+                                            <th>Eff.</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="alerts-ue-tbody">
+                                        <tr>
+                                            <td colspan="5" class="text-center py-6 text-gray-600 italic text-xs">
+                                                Chargement…</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="px-4 py-3 border-t border-white/5" id="alerts-ue-pagination"></div>
+                        </div>
+                    </div>
+
+                    <!-- Conteneur fantôme pour ui.js -->
+                    <div id="alerts-container" class="hidden"></div>
+                </div><!-- /view-alertes -->
+
+            </div><!-- /content-scroll -->
+            <div id="view-content" class="hidden"></div>
+        </div>
+    </div>
+
+    <!-- ════════════════ FILTER MODAL ════════════════════════════════════ -->
+    <div id="filter-modal" class="modal-overlay hidden">
+        <div class="modal-content fade-up max-w-4xl w-[95%]">
+            <div class="flex items-center justify-between mb-8">
+                <div>
+                    <h3 class="text-xl font-bold text-white">Filtres de données</h3>
+                    <p class="text-xs text-gray-400 mt-1">Affinez vos résultats par catégories</p>
+                </div>
+                <button onclick="ui.toggleFilterModal()" class="p-2 hover:bg-white/5 rounded-full transition-colors"><i
+                        data-lucide="x" class="w-5 h-5 text-gray-400"></i></button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div class="space-y-6">
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between"><label
+                                class="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Année</label>
+                            <div class="flex gap-2"><button onclick="app.bulkSelect('annee',true)"
+                                    class="text-[10px] text-accent font-medium">Tout</button><button
+                                    onclick="app.bulkSelect('annee',false)"
+                                    class="text-[10px] text-gray-500 font-medium">Aucun</button></div>
+                        </div>
+                        <div id="filter-annee" class="filter-container"></div>
+                    </div>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between"><label
+                                class="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Semestre</label>
+                            <div class="flex gap-2"><button onclick="app.bulkSelect('semestre',true)"
+                                    class="text-[10px] text-accent font-medium">Tout</button><button
+                                    onclick="app.bulkSelect('semestre',false)"
+                                    class="text-[10px] text-gray-500 font-medium">Aucun</button></div>
+                        </div>
+                        <div id="filter-semestre" class="filter-container"></div>
+                    </div>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between"><label
+                                class="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Cohorte</label>
+                            <div class="flex gap-2"><button onclick="app.bulkSelect('cohorte',true)"
+                                    class="text-[10px] text-accent font-medium">Tout</button><button
+                                    onclick="app.bulkSelect('cohorte',false)"
+                                    class="text-[10px] text-gray-500 font-medium">Aucun</button></div>
+                        </div>
+                        <div id="filter-cohorte" class="filter-container"></div>
+                    </div>
+                </div>
+                <div class="space-y-6">
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between"><label
+                                class="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Département</label>
+                            <div class="flex gap-2"><button onclick="app.bulkSelect('departement',true)"
+                                    class="text-[10px] text-accent font-medium">Tout</button><button
+                                    onclick="app.bulkSelect('departement',false)"
+                                    class="text-[10px] text-gray-500 font-medium">Aucun</button></div>
+                        </div>
+                        <div id="filter-departement" class="filter-container"></div>
+                    </div>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between"><label
+                                class="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Filière</label>
+                            <div class="flex gap-2"><button onclick="app.bulkSelect('filiere',true)"
+                                    class="text-[10px] text-accent font-medium">Tout</button><button
+                                    onclick="app.bulkSelect('filiere',false)"
+                                    class="text-[10px] text-gray-500 font-medium">Aucun</button></div>
+                        </div>
+                        <div id="filter-filiere" class="filter-container"></div>
+                    </div>
+                </div>
+                <div class="space-y-6">
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between"><label
+                                class="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Type</label>
+                            <div class="flex gap-2"><button onclick="app.bulkSelect('type',true)"
+                                    class="text-[10px] text-accent font-medium">Tout</button><button
+                                    onclick="app.bulkSelect('type',false)"
+                                    class="text-[10px] text-gray-500 font-medium">Aucun</button></div>
+                        </div>
+                        <div id="filter-type" class="filter-container"></div>
+                    </div>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between"><label
+                                class="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Grade</label>
+                            <div class="flex gap-2"><button onclick="app.bulkSelect('niveau',true)"
+                                    class="text-[10px] text-accent font-medium">Tout</button><button
+                                    onclick="app.bulkSelect('niveau',false)"
+                                    class="text-[10px] text-gray-500 font-medium">Aucun</button></div>
+                        </div>
+                        <div id="filter-niveau" class="filter-container"></div>
+                    </div>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between"><label
+                                class="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Sexe</label>
+                            <div class="flex gap-2"><button onclick="app.bulkSelect('sexe',true)"
+                                    class="text-[10px] text-accent font-medium">Tout</button><button
+                                    onclick="app.bulkSelect('sexe',false)"
+                                    class="text-[10px] text-gray-500 font-medium">Aucun</button></div>
+                        </div>
+                        <div id="filter-sexe" class="filter-container"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-8 flex gap-3">
+                <button id="btn-reset-filters"
+                    class="flex-1 py-2.5 px-4 bg-card2 border border-border hover:bg-border rounded-xl text-sm font-medium transition-colors">Réinitialiser</button>
+                <button onclick="ui.toggleFilterModal();app.refresh()"
+                    class="flex-1 py-2.5 px-4 bg-accent hover:bg-accent-light rounded-xl text-sm font-bold text-white shadow-lg shadow-accent/20 transition-all">Appliquer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ════════════════ UPLOAD MODAL ════════════════════════════════════ -->
+    <div id="upload-modal" class="modal-overlay hidden">
+        <div class="modal-content fade-up">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-lg font-bold">Importer des données</h3><button onclick="ui.toggleUploadModal()"
+                    class="text-gray-400 hover:text-white"><i data-lucide="x"></i></button>
+            </div>
+            <div id="upload-dropzone" class="upload-dropzone">
+                <i data-lucide="cloud-upload" class="w-10 h-10 text-accent mb-3"></i>
+                <p class="text-sm font-medium text-gray-300 mb-1">Glissez un fichier ici</p>
+                <p class="text-[11px] text-gray-500">ou cliquez pour sélectionner</p>
+                <p class="text-[10px] text-gray-600 mt-2">CSV, Parquet, Excel (.xlsx) • Max 50 MB</p>
+                <input type="file" id="upload-file-input" accept=".csv,.parquet,.xlsx,.xls" class="hidden">
+            </div>
+            <div id="upload-progress" class="hidden mt-4">
+                <div class="flex items-center justify-between mb-2"><span id="upload-filename"
+                        class="text-xs text-gray-400 truncate"></span><span id="upload-status-text"
+                        class="text-xs font-medium"></span></div>
+                <div class="progress-bar-bg" style="height:6px;">
+                    <div id="upload-progress-bar" class="progress-bar-fill"
+                        style="width:0%;background:var(--accent);transition:width .3s;"></div>
+                </div>
+            </div>
+            <div id="upload-result" class="hidden mt-4 p-3 rounded-lg border"></div>
+        </div>
+    </div>
+
+    <!-- ════════════════ LOGIN MODAL ════════════════════════════════════ -->
+    <div id="login-modal" class="modal-overlay hidden">
+        <div class="modal-content fade-up max-w-sm">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-lg font-bold">Connexion Administration</h3>
+                <button onclick="ui.toggleLoginModal()" class="text-gray-400 hover:text-white"><i
+                        data-lucide="x"></i></button>
+            </div>
+            <form id="login-form" onsubmit="event.preventDefault(); app.handleLogin();" class="space-y-4">
+                <div class="space-y-1.5">
+                    <label class="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Utilisateur</label>
+                    <input type="text" id="login-username" class="search-input w-full" placeholder="admin" value="admin"
+                        required>
+                </div>
+                <div class="space-y-1.5">
+                    <label class="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Mot de passe</label>
+                    <input type="password" id="login-password" class="search-input w-full" placeholder="••••••••"
+                        required>
+                </div>
+                <button type="submit" id="login-submit-btn"
+                    class="w-full py-3 bg-accent hover:bg-accent-light text-white font-bold rounded-xl shadow-lg shadow-accent/20 transition-all flex items-center justify-center gap-2 mt-2">
+                    <i data-lucide="log-in" class="w-4 h-4"></i>
+                    Se connecter
+                </button>
+                <div id="login-error" class="text-xs text-red-400 text-center hidden">Identifiants incorrects</div>
+            </form>
+
+            <div id="logout-container" class="hidden space-y-6 py-4">
+                <div class="flex items-center justify-between border-b border-white/5 pb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-green-500/10 rounded-full flex items-center justify-center">
+                            <i data-lucide="user-check" class="w-5 h-5 text-green-500"></i>
+                        </div>
+                        <div>
+                            <div class="text-xs font-bold text-white">Administrateur</div>
+                            <div class="text-[10px] text-gray-500 italic">Session active</div>
+                        </div>
+                    </div>
+                    <button onclick="app.handleLogout()"
+                        class="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg transition-colors"
+                        title="Se déconnecter">
+                        <i data-lucide="log-out" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h4 class="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Historique des Imports
+                        </h4>
+                        <div class="flex gap-3">
+                            <button onclick="AdminView.rollback()"
+                                class="text-[10px] text-red-500 hover:text-red-400 font-bold flex items-center gap-1">
+                                <i data-lucide="rotate-ccw" class="w-3 h-3"></i> Rollback backup
+                            </button>
+                            <button onclick="AdminView.loadHistory()"
+                                class="text-[10px] text-accent hover:underline">Rafraîchir</button>
+                        </div>
+                    </div>
+                    <div class="bg-black/20 rounded-xl border border-white/5 overflow-hidden">
+                        <div class="max-h-[300px] overflow-y-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead class="sticky top-0 bg-card z-10 border-b border-white/10">
+                                    <tr class="text-[9px] uppercase tracking-wider text-gray-500 font-bold">
+                                        <th class="px-3 py-2">Date</th>
+                                        <th class="px-3 py-2">Fichier</th>
+                                        <th class="px-3 py-2">Statut</th>
+                                        <th class="px-3 py-2">Détails</th>
+                                        <th class="px-3 py-2"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="admin-history-tbody">
+                                    <tr>
+                                        <td colspan="5" class="text-center py-8 text-gray-600 italic text-xs">
+                                            Chargement…</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="hm-tooltip" id="hm-tooltip"></div>
+
+    <!-- ════════════════ SCRIPTS ══════════════════════════════════════════ -->
+    <script src="js/api.js?v=9"></script>
+    <script src="js/ui.js?v=9"></script>
+    <script src="js/views.js?v=9"></script>
+    <script src="js/app.js?v=9"></script>
+
+    <script>
+        try { lucide.createIcons(); } catch (e) { console.warn('Lucide icons load error:', e); }
+
+        /* Point d'entrée */
+        document.addEventListener('DOMContentLoaded', () => {
+            ui._initElements();
+            _initViews();
+            if (window.CompareView) CompareView.init();
+            ui.switchView('dashboard');
+            app.init();
+        });
+
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                const l = document.getElementById('global-loader');
+                if (l) { l.style.opacity = '0'; setTimeout(() => l.style.display = 'none', 500); }
+            }, 800);
+        });
+        setTimeout(() => {
+            const l = document.getElementById('global-loader');
+            if (l && l.style.display !== 'none') {
+                l.style.opacity = '0';
+                setTimeout(() => l.style.display = 'none', 500);
+            }
+        }, 5000);
+    </script>
+</body>
+
+</html>

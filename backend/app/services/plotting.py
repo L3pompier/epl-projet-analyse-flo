@@ -479,16 +479,13 @@ def donut(df_in: pd.DataFrame) -> plt.Figure:
     labels_ext = ["Admis", "Ajourné"]
     couleurs_ext = [COLOR_REUSSITE, COLOR_ECHEC]
 
-    # Déclinaison par sexe pour l'anneau interne
     vals_int = [
         nb(reussi & (df_plot["sexe"] == "M")),
         nb(reussi & (df_plot["sexe"] == "F")),
         nb(~reussi & (df_plot["sexe"] == "M")),
         nb(~reussi & (df_plot["sexe"] == "F")),
     ]
-    # Si des sexes sont inconnus ou autres, on peut avoir du reste, mais restons sur M/F pour la clarté
-    labels_int = ["Hommes Admis", "Femmes Admises", "Hommes Ajournés", "Femmes Ajournées"]
-    # Variantes plus claires/sombres des couleurs de base
+        labels_int = ["Hommes Admis", "Femmes Admises", "Hommes Ajournés", "Femmes Ajournées"]
     couleurs_int = ["#059669", "#34d399", "#dc2626", "#f87171"] # Verts et Rouges variés
 
     fig, (ax_donut, ax_legende) = plt.subplots(1, 2, figsize=(14, 7), dpi=FIG_DPI)

@@ -1,5 +1,5 @@
 /* ============================================================
- v iews.js — Contrôleurs des* vues secondaires
+ views.js — Contrôleurs des vues secondaires
  Chaque vue gère son propre état, ses KPIs et ses figures.
  ============================================================ */
 
@@ -150,7 +150,7 @@ function queueFig(imgId, view, filters) {
 window.queueFig = queueFig;
 
 /* INTERPRET BOX — Composant d'interprétation pédagogique
- Appelle GET /api/interpret* et injecte le résultat dans un encart HTML.*/
+ Appelle GET /api/interpret et injecte le résultat dans un encart HTML.*/
 const InterpretBox = {
     
     _COLORS: {
@@ -356,7 +356,7 @@ function ueStatut(moy, taux) {
 }
 
 /* PAGINATION HELPER
- Gère une table paginée : t*ri, pages, rendu.*/
+ Gère une table paginée : tri, pages, rendu.*/
 class PaginatedTable {
     constructor(tbodyId, paginationId, pageSize = 10) {
         this.tbodyId = tbodyId;
@@ -473,7 +473,7 @@ class PaginatedTable {
 }
 
 /* 
- V UE DASHBOARD — patch de r*enderDashboard
+ V UE DASHBOARD — patch de renderDashboard
  */
 const DashboardView = {
     /* Tables paginées Top / Bottom */
@@ -625,7 +625,7 @@ function _createRisquesTable(tbodyId, paginationId, isRanking = false) {
 window._renderStudentsPalmares = _renderStudentsPalmares;
 
 /* 
- V UE DÉPARTEMENT           *
+ VUE DÉPARTEMENT           
  */
 const DeptView = {
     _dept: 'GI',
@@ -717,7 +717,7 @@ const DeptView = {
 window.DeptView = DeptView;
 
 /* 
- V UE FILIÈRE               *
+ V UE FILIÈRE               
  */
 const FiliereView = {
     _table: null,
@@ -886,13 +886,11 @@ const UEView = {
         this._renderTopBottom();
     },
     
-    /* Bindings sur la barre de recherche */
     _bindSearch() {
         const input = document.getElementById('ue-search-input');
         const list = document.getElementById('ue-search-results');
         if (!input || !list) return;
         
-        /* Positionner le dropdown fixé relativement à l'input */
         const _positionDropdown = () => {
             const rect = input.getBoundingClientRect();
             list.style.top = (rect.bottom + 4) + 'px';
@@ -905,7 +903,6 @@ const UEView = {
             if (q.length < 1) { list.classList.add('hidden'); list.innerHTML = ''; return; }
             _positionDropdown();
             
-            /* Chercher en priorité dans les UEs disponibles avec les filtres actifs */
             const pool = this._filteredCodes.length ? this._filteredCodes : this._allCodes;
             const matches = pool.filter(c => c.toUpperCase().includes(q)).slice(0, 14);
             
@@ -972,7 +969,7 @@ const UEView = {
         if (bottomBody) bottomBody.innerHTML = this._bottomRows.map(rowHtml).join('') || emptyRow(5);
     },
     
-    /* Chargement d'une UE depuis n'importe où (clic de ligne, recherche…) */
+    /* Chargement d'une UE */
     async loadCode(code) {
         if (!code) return;
         this._currentCode = code;
@@ -1076,7 +1073,7 @@ function emptyRow(cols) {
 }
 
 /* 
- V UE ÉTUDIANT              *
+ V UE ÉTUDIANT              
  */
 const StudentView = {
     async load() {
@@ -1180,7 +1177,7 @@ const StudentView = {
             }).join('');
         }
         
-        /* Interprétation du parcours — positionnée AVANT le parcours dans le DOM */
+        /* Interprétation du parcours */
         InterpretBox.forEtudiant('interpret-etudiant', p);
         
         /* Courbe évolution étudiant vs cohorte */
@@ -1195,15 +1192,10 @@ const StudentView = {
                 imgCohorte.onload = () => { if (imgCohorte._loadToken !== token) return; imgCohorte.classList.add('loaded'); loaderCoh?.classList.add('hidden'); };
                 imgCohorte.onerror = () => { if (imgCohorte._loadToken !== token) return; if (loaderCoh) { loaderCoh.innerHTML = '<i data-lucide="image-off" class="w-5 h-5 text-gray-700"></i><span class="text-[9px] text-gray-600 font-mono uppercase">Données insuffisantes</span>'; lucide.createIcons(); } };
                 imgCohorte.src = api.getFigureUrl('student_cohorte', { ...window.app?.currentFilters || {}, ue: etudId });
-                // Bug F9 fix — _v déjà injecté par getFigureUrl, ne pas le dupliquer
             }
         }
         
-        /* Palmarès de la cohorte — réinitialiser la table à chaque étudiant
-         p our rafraîchir le* highlight "Vous" et la pagination proprement.
-         _studRisquesTable est gérée par _renderStudentsPalmares() ci-dessus
-         (ligne 1135) via _createRisquesTable('etudiant-risk-tbody', ..., true).
-         On force la réinitialisation en nullant _studRisquesTable avant l'appel. */
+        
         _studRisquesTable = null;
         _renderStudentsPalmares(p.palmares_cohorte || [], 'etudiant');
         lucide.createIcons();
@@ -1216,7 +1208,7 @@ function _ordinal(n) {
 window.StudentView = StudentView;
 
 /* 
- V UE ALERTES — avec table p*aginée UE difficiles
+ VUE ALERTES — avec table paginée UE difficiles
  */
 const AlertsView = {
     _ueTable: null,
@@ -1245,7 +1237,7 @@ const AlertsView = {
     },
     
     _renderStudents(risques) {
-        /* Réinitialiser si le tbody a été supprimé du DOM (ex: navigation) */
+        /* Réinitialiser si le tbody a été supprimé du DOM */
         if (this._alertsTable && !document.getElementById('alerts-risk-tbody')) {
             this._alertsTable = null;
         }
@@ -1277,12 +1269,9 @@ const AlertsView = {
 };
 window.AlertsView = AlertsView;
 
-/*  Helpers communs (version de référence, ne pas dupliquer)  */
-/* _setText et _esc sont définis en tête de fichier.               */
 window._setText = _setText;
 window._esc = _esc;
 
-/*  Surcharge ui.switchView pour déclencher les sous-vues ─ */
 function _initViews() {
     /* Patch ui.switchView */
     const _origSwitch = ui.switchView.bind(ui);
@@ -1310,7 +1299,7 @@ function _initViews() {
     } catch (e) { console.error('Views initialization failed:', e); }
     
     /* Invalider le cache de suggestions de CompareView quand les filtres changent
-     (ex: un filtre départe*ment actif réduit les filières disponibles) */
+     (ex: un filtre département actif réduit les filières disponibles) */
     const _origRefresh = window.app?.refresh?.bind(window.app);
     if (window.app && _origRefresh) {
         window.app.refresh = async function (force) {
@@ -1319,7 +1308,6 @@ function _initViews() {
         };
     }
     
-    /* Intercepter getDashboardAggregates pour stocker _lastData */
     const _origGet = api.getDashboardAggregates.bind(api);
     api.getDashboardAggregates = async function (filters, abortKey) {
         const data = await _origGet(filters, abortKey);
@@ -1330,7 +1318,7 @@ function _initViews() {
 window._initViews = _initViews;
 
 /* 
- V UE COMPARAISON           *
+ VUE COMPARAISON           
  Permet de comparer UEs / filières / départements côte à côte.
  Indicateurs : moyenne, médiane, taux, σ, σ², Q1, Q3, IQR, min, max.
  */
@@ -1341,7 +1329,7 @@ const CompareView = {
     
     init() {
         if (this._initialized) return;
-        this._initialized = true; // Bug F3 fix — était 'false', la garde ne fonctionnait jamais
+        this._initialized = true; 
         /* Boutons de type */
         document.querySelectorAll('.cmp-type-btn').forEach(btn => {
             btn.onclick = () => {
@@ -1386,12 +1374,8 @@ const CompareView = {
     async _loadSuggestions() {
         try {
             if (this._type === 'ue') {
-                /* /meta/ues retourne toutes les UEs (jusqu'à 5000).
-                 g etCompare* avec liste vide est plafonné à 30 côté backend
-                 et effectue N calculs stats inutiles juste pour les suggestions. */
                 this._allItems = await api.getUEList();
             } else {
-                /* Pour filière / département : disponibilites est plus léger */
                 const dispo = await api.getDisponibilites(window.app?.currentFilters || {});
                 const map = {
                     filiere: dispo?.filieres || [],
@@ -1516,7 +1500,7 @@ const CompareView = {
         `<th class="px-4 py-3 text-center text-xs font-bold" style="color:${COLORS[i % COLORS.length]}">${e.nom}</th>`
         ).join('');
         
-        /* Meilleur par métrique (pour highlight) */
+        /* Meilleur par métrique */
         const bestFor = {};
         for (const m of METRICS) {
             const vals = entites.map(e => e[m.key] ?? -Infinity);
@@ -1599,7 +1583,7 @@ const CompareView = {
 window.CompareView = CompareView;
 
 /*  AdminView ─
- G ère l'affichage de l'hist*orique des uploads.
+ Gère l'affichage de l'historique des uploads.
  */
 const AdminView = {
     async loadHistory() {

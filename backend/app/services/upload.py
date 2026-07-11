@@ -95,7 +95,24 @@ def read_uploaded_file(content: bytes, filename: str) -> pd.DataFrame:
     elif suffix == ".parquet":
         df = pd.read_parquet(buf)
     elif suffix in (".xlsx", ".xls"):
-        df = pd.read_excel(buf, engine="openpyxl")
+        dict_dfs = pd.read_excel(buf, sheet_name=None, engine="openpyxl")
+        valid_dfs = []
+        for sheet_name, df_sheet in dict_dfs.items():
+            # Normalisation temporaire des colonnes pour la détection
+            temp_cols = df_sheet.columns.str.strip().str.lower()
+            colonnes_essentielles = {"note", "anonymat", "ue"}
+            if colonnes_essentielles.issubset(set(temp_cols)):
+                valid_dfs.append(df_sheet)
+                logger.info(f"Feuille Excel '{sheet_name}' valide et prise en compte pour l'import.")
+            else:
+                logger.info(f"Feuille Excel '{sheet_name}' ignorée (colonnes essentielles manquantes).")
+        
+        if not valid_dfs:
+            raise ValueError(
+                "Aucune feuille dans le fichier Excel ne contient les colonnes requises "
+                "(anonymat, ue, note)."
+            )
+        df = pd.concat(valid_dfs, ignore_index=True)
     else:
         raise ValueError(
             f"Format non supporté : '{suffix}'. "
@@ -144,7 +161,8 @@ def validate_uploaded_data(df: pd.DataFrame) -> Tuple[pd.DataFrame, List[str]]:
     notes_valides = df["note"].dropna()
     nb_hors_bornes = int(((notes_valides < 0) | (notes_valides > 20)).sum())
     if nb_hors_bornes > 0:
-        warnings.append(f"{nb_hors_bornes} note(s) hors de la plage [0, 20]")
+        warnings.append(f"{nb_hors_bornes} note(s) hors de la plage [0, 20] — sera(ont) supprimée(s)")
+        df.loc[(df["note"] < 0) | (df["note"] > 20), "note"] = np.nan
 
     df["semestre"] = pd.to_numeric(df["semestre"], errors="coerce")
     nb_sem_invalides = int(df["semestre"].isna().sum())
@@ -227,58 +245,77 @@ def _verifier_coherence_identifiants(
     """
     Vérifie la cohérence croisée carte ↔ anonymat entre le fichier importé
     et les données existantes. Deux cas rejetés :
-      1. anonymat connu en base → carte doit être identique
-      2. carte connue en base  → anonymat doit être identique
+      1. anonymat connu en base pour une UE → carte doit être identique
+      2. carte connue en base pour une UE → anonymat doit être identique
+    
+    Note : La vérification est faite par UE, car un étudiant peut avoir
+    des anonymats différents selon les UE.
     """
     warnings: List[str] = []
     if existing_df.empty or "carte" not in existing_df.columns:
         return new_df, warnings
 
+    # Vérification par UE : (anonymat, ue) → carte et (carte, ue) → anonymat
     ref_anon_to_carte = (
-        existing_df.dropna(subset=["anonymat","carte"])
-        .drop_duplicates(subset=["anonymat"])
-        .set_index("anonymat")["carte"]
+        existing_df.dropna(subset=["anonymat","carte","ue"])
+        .drop_duplicates(subset=["anonymat","ue"])
+        .set_index(["anonymat","ue"])["carte"]
         .astype(str).str.strip()
     )
     ref_carte_to_anon = (
-        existing_df.dropna(subset=["anonymat","carte"])
-        .drop_duplicates(subset=["carte"])
-        .set_index("carte")["anonymat"]
+        existing_df.dropna(subset=["anonymat","carte","ue"])
+        .drop_duplicates(subset=["carte","ue"])
+        .set_index(["carte","ue"])["anonymat"]
         .astype(str).str.strip()
     )
 
     new_df = new_df.copy()
     new_df["anonymat"] = new_df["anonymat"].astype(str).str.strip()
     new_df["carte"]    = new_df["carte"].astype(str).str.strip()
+    new_df["ue"]       = new_df["ue"].astype(str).str.strip()
     mask_ok = pd.Series(True, index=new_df.index)
 
-    # Cas 1 : anonymat connu → carte doit correspondre
-    anons_connus = new_df["anonymat"].isin(ref_anon_to_carte.index)
+    # Cas 1 : anonymat connu pour une UE → carte doit correspondre
+    # Créer une clé composite et utiliser map pour lookup
+    new_df["_key_anon_ue"] = new_df["anonymat"].astype(str) + "|" + new_df["ue"].astype(str)
+    ref_anon_to_carte_str = ref_anon_to_carte.reset_index()
+    ref_anon_to_carte_str["_key"] = ref_anon_to_carte_str["anonymat"].astype(str) + "|" + ref_anon_to_carte_str["ue"].astype(str)
+    ref_anon_to_carte_map = ref_anon_to_carte_str.set_index("_key")["carte"].to_dict()
+    
+    carte_attendue = new_df["_key_anon_ue"].map(ref_anon_to_carte_map).fillna("")
+    anons_connus = carte_attendue != ""
     if anons_connus.any():
-        carte_attendue = new_df.loc[anons_connus, "anonymat"].map(ref_anon_to_carte)
-        incoherence    = anons_connus & (new_df["carte"] != carte_attendue)
+        incoherence = anons_connus & (new_df["carte"].values != carte_attendue.values)
         if incoherence.any():
-            ex = new_df.loc[incoherence, ["anonymat","carte"]].iloc[0]
+            ex = new_df.loc[incoherence, ["anonymat","ue","carte"]].iloc[0]
             warnings.append(
                 f"{int(incoherence.sum())} ligne(s) rejetée(s) — anonymat '{ex['anonymat']}' "
-                f"connu en base avec carte='{ref_anon_to_carte[ex['anonymat']]}' "
+                f"pour UE '{ex['ue']}' connu en base avec carte='{carte_attendue[incoherence].iloc[0]}' "
                 f"mais carte='{ex['carte']}' fournie dans le fichier"
             )
             mask_ok &= ~incoherence
 
-    # Cas 2 : carte connue → anonymat doit correspondre
-    cartes_connues = new_df["carte"].isin(ref_carte_to_anon.index)
+    # Cas 2 : carte connue pour une UE → anonymat doit correspondre
+    new_df["_key_carte_ue"] = new_df["carte"].astype(str) + "|" + new_df["ue"].astype(str)
+    ref_carte_to_anon_str = ref_carte_to_anon.reset_index()
+    ref_carte_to_anon_str["_key"] = ref_carte_to_anon_str["carte"].astype(str) + "|" + ref_carte_to_anon_str["ue"].astype(str)
+    ref_carte_to_anon_map = ref_carte_to_anon_str.set_index("_key")["anonymat"].to_dict()
+    
+    anon_attendu = new_df["_key_carte_ue"].map(ref_carte_to_anon_map).fillna("")
+    cartes_connues = anon_attendu != ""
     if cartes_connues.any():
-        anon_attendu = new_df.loc[cartes_connues, "carte"].map(ref_carte_to_anon)
-        incoherence  = cartes_connues & (new_df["anonymat"] != anon_attendu)
+        incoherence = cartes_connues & (new_df["anonymat"].values != anon_attendu.values)
         if incoherence.any():
-            ex = new_df.loc[incoherence, ["carte","anonymat"]].iloc[0]
+            ex = new_df.loc[incoherence, ["carte","ue","anonymat"]].iloc[0]
             warnings.append(
                 f"{int(incoherence.sum())} ligne(s) rejetée(s) — carte '{ex['carte']}' "
-                f"connue en base avec anonymat='{ref_carte_to_anon[ex['carte']]}' "
-                f"mais anonymat='{ex['anonymat']}' fourni dans le fichier"
+                f"pour UE '{ex['ue']}' connu en base avec anonymat='{anon_attendu[incoherence].iloc[0]}' "
+                f"mais anonymat='{ex['anonymat']}' fournie dans le fichier"
             )
             mask_ok &= ~incoherence
+
+    # Nettoyer les colonnes temporaires
+    new_df = new_df.drop(columns=["_key_anon_ue", "_key_carte_ue"], errors="ignore")
 
     new_df = new_df[mask_ok].reset_index(drop=True)
 
@@ -392,6 +429,57 @@ def merge_data(
     # Vérification intégrité carte ↔ anonymat avant toute fusion
     new_df, integrity_warnings = _verifier_coherence_identifiants(existing_df, new_df)
 
+    # Vérification cohérence UE ↔ semestre (un code UE ne peut exister que dans un seul semestre)
+    if not existing_df.empty and "ue" in existing_df.columns and "semestre" in existing_df.columns:
+        # Construire la référence UE → semestre depuis la base existante
+        ref_ue_sem = (
+            existing_df.dropna(subset=["ue", "semestre"])
+            .drop_duplicates(subset=["ue"])
+            .set_index("ue")["semestre"]
+            .astype(str).str.strip()
+        )
+        
+        if not ref_ue_sem.empty:
+            new_ue_sem = new_df["ue"].astype(str).str.strip()
+            ues_in_base = new_ue_sem.isin(ref_ue_sem.index)
+            
+            if ues_in_base.any():
+                sem_attendu = new_ue_sem.map(ref_ue_sem)
+                sem_fourni = new_df["semestre"].astype(str).str.strip()
+                incoherence_ue_sem = ues_in_base & (sem_fourni != sem_attendu)
+                
+                if incoherence_ue_sem.any():
+                    nb = int(incoherence_ue_sem.sum())
+                    # Logger les UE problématiques
+                    ues_problematiques = new_df.loc[incoherence_ue_sem, "ue"].unique()[:5]
+                    logger.warning(
+                        "REJET — UE/semestre incohérent : %d ligne(s) avec UE %s "
+                        "ont un semestre différent de celui en base",
+                        nb, list(ues_problematiques),
+                    )
+                    integrity_warnings.append(
+                        f"{nb} ligne(s) rejetée(s) : code UE avec semestre différent de celui en base "
+                        f"(ex: {ues_problematiques[0] if len(ues_problematiques) > 0 else 'N/A'})"
+                    )
+                    new_df = new_df[~incoherence_ue_sem].reset_index(drop=True)
+
+    COLONNES_NUMERIQUES = ["semestre", "credit", "cohorte"]
+    for df_ in (existing_df, new_df):
+        for col in COLONNES_NUMERIQUES:
+            if col in df_.columns:
+                if df_[col].dtype.name == "category":
+                    # On repasse par str avant to_numeric : que les catégories
+                    # sous-jacentes soient déjà numériques ou textuelles, str()
+                    # uniformise l'entrée et pd.to_numeric fait la conversion finale.
+                    df_[col] = df_[col].astype(str)
+                df_[col] = pd.to_numeric(df_[col], errors="coerce")
+
+    COLONNES_TEXTE = ["ue", "filiere", "sexe", "nom_prenoms"]
+    for df_ in (existing_df, new_df):
+        for col in COLONNES_TEXTE:
+            if col in df_.columns and df_[col].dtype.name == "category":
+                df_[col] = df_[col].astype(str)
+
     # Normaliser les colonnes de fusion
     for col in MERGE_KEY:
         existing_df[col] = existing_df[col].astype(str).str.strip()
@@ -500,7 +588,7 @@ def process_upload(content: bytes, filename: str) -> Dict[str, Any]:
         # 6. Fusionner
         merged_df, nb_added, nb_updated, integrity_warnings = merge_data(existing_df, new_df)
         warnings.extend(integrity_warnings)
-
+        
         # 7. Sauvegarder
         save_merged_data(merged_df)
 

@@ -32,47 +32,44 @@ def _q_taux(t: Optional[float]) -> str:
 
 def _q_moy(m: Optional[float]) -> str:
     if m is None: return "non définie"
-    if m >= 16: return "excellente, témoignant d'une maîtrise remarquable du programme"
-    if m >= 14: return "solide, avec une très bonne acquisition des compétences"
-    if m >= 12: return "satisfaisante, indiquant que les objectifs pédagogiques sont atteints"
-    if m >= 11: return "correcte mais laisse une marge de progression"
-    if m >= 10: return "précaire, juste au niveau requis pour la validation"
-    if m >= 8:  return "insuffisante, signalant des lacunes réelles dans l'apprentissage"
-    return "très insuffisante, appelant à une réévaluation complète du parcours"
+    if m >= 16: return "excellente"
+    if m >= 14: return "solide"
+    if m >= 12: return "satisfaisante"
+    if m >= 11: return "correcte"
+    if m >= 10: return "tout juste suffisante"
+    if m >= 8:  return "insuffisante"
+    return "très insuffisante"
 
 def _q_disp(std: float) -> str:
-    if std < 1.0: return f"exceptionnellement homogène (σ = {std:.2f}) — le groupe avance au même rythme sans disparité"
-    if std < 2.0: return f"homogène (σ = {std:.2f}) — la majorité des étudiants partagent un niveau similaire"
-    if std < 3.0: return f"modérée (σ = {std:.2f}) — on observe quelques écarts de niveau habituels"
-    if std < 4.0: return f"hétérogène (σ = {std:.2f}) — les profils sont très disparates, certains étudiants sont largement distancés"
-    return f"très hétérogène (σ = {std:.2f}) — la forte dispersion indique des profils de réussite et d'échec radicalement opposés"
+    if std < 1.0: return "très serrés, presque tout le monde est au même niveau"
+    if std < 2.0: return "assez homogènes"
+    if std < 3.0: return "moyennement dispersés"
+    if std < 4.0: return "très étalés, avec un vrai fossé entre les meilleurs et les autres"
+    return "extrêmement dispersés, deux groupes opposés cohabitent visiblement"
 
 def _n(v) -> str:
     return f"{v:.2f}/20" if v is not None else "n/d"
 
-def _q_iqr(iqr: float) -> str:
-    """Qualifie l'étendue inter-quartile."""
-    if iqr <= 2.0:  return f"très resserrée (IQR = {iqr:.2f} pts) — le cœur de la promotion (50 %) est extrêmement soudé"
-    if iqr <= 4.0:  return f"équilibrée (IQR = {iqr:.2f} pts)"
-    if iqr <= 6.0:  return f"étendue (IQR = {iqr:.2f} pts) — même au sein du groupe central, les différences de réussite sont notables"
-    return f"disparate (IQR = {iqr:.2f} pts) — forte hétérogénéité structurelle au sein même de la classe moyenne"
-
 def _p(v) -> str:
     return f"{v:.1f} %" if v is not None else "n/d"
 
-def _asymetrie(moy: float, med: float) -> str:
+def _asymetrie_courte(moy: float, med: float) -> Optional[str]:
+    """
+    Décrit en une courte incise la forme de la distribution (moyenne vs
+    médiane), pour être intégrée dans une phrase plus large plutôt que
+    de constituer son propre paragraphe. Formulé en proposition complète
+    (sujet + verbe) pour ne pas dépendre de l'accord du mot qui précède.
+    """
     d = moy - med
     if abs(d) < 0.4:
-        return (f"La distribution est équilibrée : la moyenne ({_n(moy)}) "
-                f"et la médiane ({_n(med)}) sont très proches. "
-                "Cela indique une promotion homogène sans 'petits groupes' aux résultats extrêmes.")
+        return None  # rien à signaler, ne pas alourdir le texte pour un non-événement
     if d > 0:
-        return (f"La moyenne ({_n(moy)}) est supérieure à la médiane ({_n(med)}) "
-                f"(+{d:.2f} pts). Cette asymétrie positive montre qu'une minorité d'étudiants "
-                "très performants tirent les résultats vers le haut, ce qui peut masquer les difficultés rencontrées par la majorité.")
-    return (f"La médiane ({_n(med)}) dépasse la moyenne ({_n(moy)}) "
-            f"({abs(d):.2f} pts d'écart). Cela suggère que quelques notes très basses "
-            "pénalisent la moyenne globale, alors que plus de la moitié de la classe réussit plutôt bien.")
+        if moy < SEUIL_REUSSITE:
+            return "et même ce chiffre-là tient surtout à quelques bonnes copies, le reste est en dessous"
+        return "tirés vers le haut par un petit groupe de bons résultats plus que par l'ensemble"
+    if moy >= SEUIL_REUSSITE:
+        return "freinés par quelques notes très basses, la majorité fait mieux que ça"
+    return "et plus de la moitié du groupe est en fait sous ce chiffre déjà bas"
 
 def interpreter_ue(s: Dict[str, Any]) -> Dict[str, Any]:
     moy  = s.get("moyenne")
@@ -80,10 +77,6 @@ def interpreter_ue(s: Dict[str, Any]) -> Dict[str, Any]:
     eff  = s.get("effectif")
     std  = s.get("std_note")
     med  = s.get("mediane_note")
-    mn   = s.get("min_note")
-    mx   = s.get("max_note")
-    adm  = s.get("nombre_admis")
-    ajr  = s.get("nombre_ajournes")
     diff = s.get("isDifficile", False)
     code = s.get("ue", "cette UE")
 
@@ -94,94 +87,63 @@ def interpreter_ue(s: Dict[str, Any]) -> Dict[str, Any]:
 
     niveau = "danger" if diff else _niv_taux(taux)
 
-    paras = []
-
-    # Phrase d'accroche
-    eff_str = f" sur {eff} étudiant(s) évalué(s)" if eff else ""
     ctx = _contexte_filtres(s)
-    paras.append(
-        f"{ctx}l'UE {code} présente un taux de réussite de {_p(taux)} ({_q_taux(taux)}){eff_str}, "
-        f"pour une moyenne de {_n(moy)} ({_q_moy(moy)})."
-    )
+    eff_str = f" ({eff} étudiants)" if eff else ""
 
-    if med is not None and moy is not None:
-        paras.append(_asymetrie(float(moy), float(med)))
+    # Phrase 1 : le constat global, formulé comme une lecture plutôt
+    # qu'une simple répétition des deux chiffres (déjà visibles en KPI).
+    phrase1 = (f"{ctx}sur l'UE {code}{eff_str}, la moyenne est {_q_moy(moy)} "
+               f"et la réussite {_q_taux(taux)}.")
 
+    # Phrase 2 : une seule lecture de la "forme" du groupe. La dispersion
+    # porte l'idée principale ; l'asymétrie n'est ajoutée que si elle
+    # apporte une vraie nuance (sinon elle redirait juste la dispersion
+    # autrement). L'amplitude min/max n'est pas commentée séparément :
+    # c'est la même information que la dispersion, redondante à l'oral.
+    phrase2 = None
     if std is not None:
-        paras.append(f"La dispersion des résultats est {_q_disp(std)}. Concrètement, cela signifie que {
-            'les étudiants progressent de manière très unie' if std < 1.0 
-            else 'le groupe est relativement soudé' if std < 2.0
-            else 'certaines disparités apparaissent entre les étudiants' if std < 3.0
-            else 'le niveau est très hétérogène, nécessitant une pédagogie différenciée'
-        }.")
+        phrase2 = f"Les résultats sont {_q_disp(std)}"
+        asym = _asymetrie_courte(float(moy), float(med)) if (med is not None and moy is not None) else None
+        if asym:
+            phrase2 += f", {asym}"
+        phrase2 += "."
 
-    if mn is not None and mx is not None:
-        spread = mx - mn
-        paras.append(
-            f"L'écart entre la meilleure note ({_n(mx)}) et la note la plus basse ({_n(mn)}) est de {spread:.2f} pts. "
-            + ("Cette forte amplitude confirme que l'UE discrimine fortement les niveaux." if spread > 12
-               else "Cette étendue modérée indique une certaine cohérence dans l'évaluation." if spread > 7
-               else "Ce faible écart traduit une notation très resserrée.")
-        )
+    corps = phrase1 + (" " + phrase2 if phrase2 else "")
 
-    corps = " ".join(paras)
-
-    q1  = s.get("q1_note")
-    q3  = s.get("q3_note")
-    iqr = s.get("iqr_note")
-    points = []
-    if adm is not None and ajr is not None:
-        pct_a = taux or 0
-        pct_j = 100 - pct_a
-        points.append(f"Admis : {adm} ({pct_a:.1f} %)  ·  Ajournés : {ajr} ({pct_j:.1f} %)")
-    if mn is not None and mx is not None:
-        points.append(f"Min : {_n(mn)}  ·  Max : {_n(mx)}  ·  Étendue : {mx-mn:.2f} pts")
-    if med is not None:
-        points.append(f"Médiane (Q2) : {_n(med)}  ·  Moyenne : {_n(moy)}")
-    if q1 is not None and q3 is not None:
-        points.append(f"Q1 : {_n(q1)}  ·  Q3 : {_n(q3)}  ·  IQR : {iqr:.2f} pts")
-    if std is not None:
-        points.append(f"Écart-type σ : {std:.2f}  ·  Variance σ² : {std**2:.2f}")
-
-    # ── Conseil 
+    # ── Conseil
     conseil = None
     if diff:
         conseil = (
-            f"⚠ UE en difficulté structurelle (taux < 50 % et moyenne < {SEUIL_REUSSITE}). "
-            "Actions recommandées : révision du contenu ou du mode d'évaluation, "
-            "mise en place de séances de remédiation, et suivi rapproché "
-            "des étudiants ajournés avant la session de rattrapage."
+            f"L'UE cumule un taux d'échec élevé et une moyenne sous {SEUIL_REUSSITE}/20 : ce n'est "
+            "pas juste un mauvais semestre, c'est structurel. Ça vaut le coup de revoir le contenu ou "
+            "l'évaluation, et de caler des séances de remédiation avant le rattrapage."
         )
     elif taux is not None and taux < 50:
         conseil = (
-            "Le taux d'échec dépasse 50 %. Bien que la moyenne ne soit pas "
-            "formellement sous le seuil, un nombre important d'étudiants n'atteint "
-            "pas la validation. Un soutien ciblé avant la session de rattrapage est conseillé."
+            "Plus d'un étudiant sur deux est ajourné, même si la moyenne tient encore le coup. "
+            "Un coup de pouce ciblé avant le rattrapage ferait sans doute la différence."
         )
     elif std is not None and std >= 4.5:
         conseil = (
-            "La forte hétérogénéité des niveaux suggère des prérequis très variables. "
-            "Un test de positionnement en début d'UE permettrait d'adapter le rythme "
-            "et d'orienter les étudiants les plus fragiles vers des ressources complémentaires."
+            "L'écart entre les étudiants est tel qu'ils n'arrivent visiblement pas avec les mêmes "
+            "bases. Un test de positionnement en début d'UE aiderait à repérer vite ceux qui ont besoin "
+            "d'un coup de main."
         )
     elif taux is not None and taux >= 80 and moy is not None and moy >= 14:
         conseil = (
-            "Performance excellente. Cette UE peut servir de référence "
-            "pédagogique pour le département. Les pratiques d'enseignement "
-            "associées méritent d'être documentées et partagées."
+            "De très bons résultats, à un niveau qui peut servir d'exemple pour le département : "
+            "ça vaut le coup de documenter ce qui marche ici pour le réutiliser ailleurs."
         )
     elif taux is not None and taux >= 65:
         conseil = (
-            "Résultats satisfaisants. Le suivi des étudiants ajournés "
-            "et la disponibilité de ressources de révision permettraient "
-            "d'améliorer encore ce taux lors de la prochaine session."
+            "Des résultats corrects dans l'ensemble. Suivre les ajournés et leur donner de quoi "
+            "réviser devrait suffire à grappiller quelques points la prochaine fois."
         )
 
     return {
         "niveau": niveau,
         "titre": _titre_ue(taux, diff),
         "corps": corps,
-        "points": points,
         "conseil": conseil,
     }
 
@@ -200,7 +162,6 @@ def interpreter_dashboard(s: Dict[str, Any]) -> Dict[str, Any]:
     eff   = s.get("effectif_exact", 0)
     med   = s.get("mediane")
     std   = s.get("ecart_type")
-    var   = s.get("variance")
     diff  = s.get("ue_difficiles", [])
     risq  = s.get("risques", [])
 
@@ -212,89 +173,72 @@ def interpreter_dashboard(s: Dict[str, Any]) -> Dict[str, Any]:
     nb_diff = len(diff) if isinstance(diff, list) else 0
     nb_risq = len(risq) if isinstance(risq, list) else 0
 
-    paras = []
     ctx = _contexte_filtres(s)
-    paras.append(
-        f"{ctx}sur {eff:,} étudiant(s) évalué(s), le taux de réussite global s'établit à {_p(taux)} "
-        f"({_q_taux(taux)}) avec une moyenne générale de {_n(moy)} ({_q_moy(moy)})."
-    )
 
-    if med is not None and moy is not None:
-        paras.append(_asymetrie(float(moy), float(med)))
+    # Phrase 1 : constat global (taux + moyenne croisés, pas juste listés).
+    phrase1 = (f"{ctx}sur {eff:,} étudiants, la réussite est {_q_taux(taux)} "
+               f"et la moyenne {_q_moy(moy)}.")
 
-    if std is not None:
-        paras.append(f"La distribution globale des notes est {_q_disp(std)}. "
-                     "L'enseignement semble ainsi " + 
-                     ("parfaitement adapté à l'ensemble du groupe." if std < 1.5 
-                      else "globalement d'accès équitable pour la majorité." if std < 3.0
-                      else "confronté à des écarts de niveaux qui méritent une attention par filière."))
-
+    # Phrase 2 : une seule lecture de la forme du groupe. La dispersion
+    # (std) et l'IQR racontent la même chose à deux échelles différentes
+    # (tout le monde / le centre) — on les fond en une phrase au lieu de
+    # deux paragraphes qui répéteraient la même idée.
     iqr_v = s.get("iqr")
-    if iqr_v is not None:
-        paras.append(f"L'étendue inter-quartile est {_q_iqr(float(iqr_v))}. "
-                     "On en déduit que le 'cœur' de la promotion est " + 
-                     ("très homogène dans ses performances." if float(iqr_v) < 3.0
-                      else "marqué par des disparités internes significatives."))
-
-    if nb_diff > 0:
-        paras.append(
-            f"{nb_diff} UE présentent simultanément un taux de réussite inférieur à 50 % "
-            f"et une moyenne sous le seuil (consultables dans l'onglet Alertes)."
-        )
-
-    if nb_risq > 0:
-        paras.append(
-            f"{nb_risq} étudiant(s) ont une moyenne individuelle inférieure au seuil "
-            f"de réussite ({SEUIL_REUSSITE}/20) et nécessitent une attention particulière "
-            f"(liste consultable dans l'onglet Alertes)."
-        )
-
-    corps = " ".join(paras)
-
-    q1  = s.get("q1")
-    q3  = s.get("q3")
-    iqr = s.get("iqr")
-    points = []
-    points.append(f"Taux de réussite : {_p(taux)}  ·  Moyenne : {_n(moy)}")
-    if med is not None:
-        points.append(f"Médiane (Q2) : {_n(med)}")
-    if q1 is not None and q3 is not None:
-        points.append(f"Q1 : {_n(q1)}  ·  Q3 : {_n(q3)}  ·  IQR : {iqr:.2f} pts")
+    phrase2 = None
     if std is not None:
-        v = f"  ·  Variance σ² : {var:.2f}" if var is not None else ""
-        points.append(f"Écart-type σ : {std:.2f}{v}")
-    points.append(f"UE en difficulté : {nb_diff}  ·  Étudiants à risque : {nb_risq}")
+        phrase2 = f"Les résultats sont {_q_disp(std)}"
+        if iqr_v is not None and float(iqr_v) > 6.0 and std < 3.0:
+            # Cas où l'ensemble paraît homogène mais le centre se disperse :
+            # une vraie nuance qui mérite d'être dite, contrairement au cas
+            # général où IQR et std racontent juste la même chose.
+            phrase2 += ", même si le milieu du classement reste assez étalé"
+        asym = _asymetrie_courte(float(moy), float(med)) if (med is not None and moy is not None) else None
+        if asym:
+            phrase2 += f", {asym}"
+        phrase2 += "."
+
+    # Phrase 3 : les alertes, qui apportent une info qu'on ne lit pas déjà
+    # dans les KPI (nombre d'UE et d'étudiants concrètement concernés).
+    phrase3 = None
+    if nb_diff > 0 and nb_risq > 0:
+        phrase3 = (f"{nb_diff} UE sont en difficulté et {nb_risq} étudiants sont sous le seuil — "
+                    "le détail est dans l'onglet Alertes.")
+    elif nb_diff > 0:
+        phrase3 = f"{nb_diff} UE sont en difficulté (taux et moyenne sous le seuil) — voir l'onglet Alertes."
+    elif nb_risq > 0:
+        phrase3 = f"{nb_risq} étudiants sont sous le seuil de réussite — voir l'onglet Alertes."
+
+    corps = " ".join(p for p in (phrase1, phrase2, phrase3) if p)
 
     conseil = None
     if nb_diff >= 5:
         conseil = (
-            f"{nb_diff} UE sont simultanément en difficulté. Un audit pédagogique "
-            "transversal est recommandé pour identifier les causes communes "
-            "(prérequis insuffisants, surcharge de programme, modalités d'évaluation inadaptées)."
+            f"{nb_diff} UE en difficulté en même temps, c'est trop pour être un hasard : il y a "
+            "probablement une cause commune (prérequis qui manquent, programme trop chargé, "
+            "évaluation mal calibrée). Un audit transversal aiderait à trancher."
         )
     elif nb_risq >= 10:
         conseil = (
-            f"{nb_risq} étudiants sont sous le seuil de réussite. "
-            "Un dispositif de tutorat ou de remédiation ciblée devrait être activé, "
-            "en priorisant les étudiants cumulant plusieurs UE ajournées."
+            f"{nb_risq} étudiants sont sous le seuil. Un tutorat ou une remédiation ciblée "
+            "vaudrait le coup, en priorité pour ceux qui cumulent plusieurs UE ajournées."
         )
     elif taux is not None and taux < 50:
         conseil = (
-            "Le taux de réussite global est inférieur à 50 %. "
-            "Une révision globale de la progression pédagogique et des modalités "
-            "d'évaluation s'impose avant la prochaine session."
+            "Plus d'un étudiant sur deux échoue. Ça dépasse le cas isolé : la progression et "
+            "les modalités d'évaluation méritent d'être revues avant la prochaine session."
         )
     elif taux is not None and taux >= 70 and moy is not None and moy >= 12:
-        conseil = (
-            "Les résultats sont globalement satisfaisants. "
-            "La priorité devrait se concentrer sur les UE en difficulté "
-            "et l'accompagnement des étudiants à risque identifiés."
-        )
+        if nb_diff > 0 or nb_risq > 0:
+            conseil = (
+                "L'ensemble tient plutôt bien la route. Le mieux à faire maintenant, c'est de se "
+                "concentrer sur les quelques UE en difficulté et les étudiants déjà repérés à risque."
+            )
+        else:
+            conseil = "Bons résultats sur l'ensemble, sans signal d'alerte particulier à traiter en priorité."
     return {
         "niveau": niveau,
         "titre": _titre_global(taux),
         "corps": corps,
-        "points": points,
         "conseil": conseil,
     }
 
@@ -328,79 +272,75 @@ def interpreter_filiere(s: Dict[str, Any]) -> Dict[str, Any]:
     best  = max(ues, key=lambda u: u.get("taux_reussite", 0), default=None)
     worst = min(ues, key=lambda u: u.get("taux_reussite", 100), default=None)
 
-    paras = []
-    ctx = _contexte_filtres(s)
-    paras.append(
-        f"{ctx}la filière {fil} regroupe {eff:,} étudiant(s) répartis sur {nb_ue} UE. "
-        f"Le taux de réussite moyen s'établit à {_p(taux)} ({_q_taux(taux)}) "
-        f"pour une moyenne générale de {_n(moy)} ({_q_moy(moy)})."
-    )
+    ctx = _contexte_filtres(s, exclude="filiere")
 
-    if med is not None and moy is not None:
-        paras.append(_asymetrie(float(moy), float(med)))
+    # Phrase 1 : constat global croisé (effectif + réussite + moyenne).
+    phrase1 = (f"{ctx}la filière {fil} compte {eff:,} étudiants sur {nb_ue} UE, "
+               f"avec une réussite {_q_taux(taux)} et une moyenne {_q_moy(moy)}.")
 
+    # Phrase 2 : la forme du groupe (dispersion + asymétrie), comme pour
+    # les autres contextes — une seule lecture plutôt que des commentaires
+    # séparés sur chaque indicateur statistique.
+    phrase2 = None
     if std is not None:
-        paras.append(f"La dispersion des résultats est {_q_disp(std)}.")
+        phrase2 = f"Les résultats sont {_q_disp(std)}"
+        asym = _asymetrie_courte(float(moy), float(med)) if (med is not None and moy is not None) else None
+        if asym:
+            phrase2 += f", {asym}"
+        phrase2 += "."
 
+    # Phrase 3 : le diagnostic UE par UE — combine la proportion en
+    # difficulté ET l'écart best/worst en une lecture, plutôt que deux
+    # paragraphes séparés. L'écart best/worst n'est mentionné que s'il
+    # apporte une vraie info (un grand écart, pas un détail de quelques
+    # points qui serait du bruit statistique).
+    phrase3 = None
     if nb_diff > 0:
-        paras.append(
-            f"{nb_diff} UE sur {nb_ue} ({pct_diff:.0f} % du programme) "
-            "présentent des difficultés structurelles."
-        )
+        # On évite "X UE sur Y sont en difficulté" quand X == Y == 1,
+        # qui sonnerait faux à l'accord ("1 UE... sont").
+        if nb_diff == 1:
+            phrase3 = (f"1 UE sur {nb_ue} est en difficulté ({pct_diff:.0f} % du programme)"
+                       if nb_ue > 1 else "La seule UE de la filière est en difficulté")
+        else:
+            phrase3 = f"{nb_diff} UE sur {nb_ue} sont en difficulté ({pct_diff:.0f} % du programme)"
+        if best and worst and best != worst:
+            gap = best.get('taux_reussite', 0) - worst.get('taux_reussite', 0)
+            if gap > 30:
+                phrase3 += f", avec un grand écart entre {best['ue']} et {worst['ue']}"
+        phrase3 += "."
+    elif best and worst and best != worst:
+        gap = best.get('taux_reussite', 0) - worst.get('taux_reussite', 0)
+        if gap > 30:
+            phrase3 = f"L'écart entre la meilleure UE ({best['ue']}) et la plus faible ({worst['ue']}) reste marqué."
 
-    if best and worst and best != worst:
-        gap = best.get('taux_reussite',0) - worst.get('taux_reussite',0)
-        paras.append(
-            f"On note un écart de réussite significatif ({gap:.1f} points) entre la meilleure UE ({best['ue']}) "
-            f"et l'UE la plus critique ({worst['ue']}). "
-            "Cette disparité suggère que certains enseignements présentent des obstacles spécifiques qui méritent d'être investigués."
-        )
-
-    corps = " ".join(paras)
-
-    q1  = s.get("q1")
-    q3  = s.get("q3")
-    iqr = s.get("iqr")
-    points = []
-    points.append(f"Taux de réussite : {_p(taux)}  ·  Moyenne : {_n(moy)}")
-    if med is not None:
-        points.append(f"Médiane (Q2) : {_n(med)}")
-    if q1 is not None and q3 is not None:
-        points.append(f"Q1 : {_n(q1)}  ·  Q3 : {_n(q3)}  ·  IQR : {iqr:.2f} pts")
-    if std is not None:
-        points.append(f"Écart-type σ : {std:.2f}  ·  Variance σ² : {std**2:.2f}")
-    points.append(f"{nb_ue} UE au total  ·  {nb_diff} en difficulté ({pct_diff:.0f} %)")
-    if best:
-        points.append(f"Meilleure UE : {best['ue']} — {_p(best.get('taux_reussite',0))}")
-    if worst and worst != best:
-        points.append(f"UE la plus difficile : {worst['ue']} — {_p(worst.get('taux_reussite',0))}")
+    corps = " ".join(p for p in (phrase1, phrase2, phrase3) if p)
 
     conseil = None
-    if pct_diff > 40:
+    if pct_diff > 40 and nb_ue >= 3:
         conseil = (
-            f"Plus de 40 % des UE ({nb_diff}/{nb_ue}) sont en difficulté. "
-            "Une révision de la progression pédagogique de la filière est urgente. "
-            "Il est recommandé d'analyser les corrélations entre les UE pour identifier "
-            "les goulots d'étranglement dans le parcours."
+            f"Près de la moitié des UE ({nb_diff}/{nb_ue}) sont en difficulté dans cette filière. "
+            "Ça vaut le coup de revoir la progression dans son ensemble et de regarder si certaines "
+            "UE bloquent les suivantes."
+        )
+    elif pct_diff > 40:
+        conseil = (
+            f"{nb_diff} UE sur {nb_ue} {'est' if nb_diff == 1 else 'sont'} en difficulté — avec aussi "
+            "peu d'UE évaluées, mieux vaut attendre d'avoir plus de données avant de tirer des "
+            "conclusions définitives, mais ça vaut le coup de garder un œil dessus."
         )
     elif pct_diff > 20:
         conseil = (
-            f"{nb_diff} UE présentent des difficultés structurelles. "
-            "Un plan d'action ciblé sur ces UE (remédiation, révision des supports, "
-            "accompagnement renforcé) permettrait d'améliorer significativement les résultats."
+            f"{nb_diff} UE {'pose' if nb_diff == 1 else 'posent'} problème. Un plan ciblé sur "
+            f"{'celle-là' if nb_diff == 1 else 'celles-là'} — remédiation, supports revus, "
+            "accompagnement renforcé — devrait suffire à redresser la barre."
         )
     elif taux is not None and taux >= 70:
-        conseil = (
-            "La filière affiche de bons résultats globaux. "
-            "La priorité peut se concentrer sur les quelques UE difficiles "
-            "pour tendre vers une réussite homogène sur l'ensemble du programme."
-        )
+        conseil = "Bons résultats dans l'ensemble. Reste à traiter les quelques UE encore en retrait pour viser une réussite homogène sur tout le programme."
 
     return {
         "niveau": _niv_taux(taux),
         "titre": f"Filière {fil} — {_q_taux(taux)}",
         "corps": corps,
-        "points": points,
         "conseil": conseil,
     }
 
@@ -435,79 +375,81 @@ def interpreter_departement(
     if ues_d:
         taux_moyen = sum(u.get("taux_reussite", 0) for u in ues_d) / len(ues_d)
 
-    paras = []
+    # Phrase 1 : moyenne + classement, en une lecture (le classement
+    # donne du sens à la moyenne, pas l'inverse — on les croise donc).
     rang_str = ""
     if rang and nb_depts > 1:
-        qualif_rang = ("en tête du classement" if rang == 1
-                       else "en dernière position" if rang == nb_depts
-                       else f"en {rang}e position sur {nb_depts}")
-        rang_str = f", le plaçant {qualif_rang}"
-    paras.append(
-        f"Le département {dept_code} affiche une moyenne de {_n(moy_dept)} ({_q_moy(moy_dept)})"
-        f"{rang_str}."
-    )
+        if rang == 1:
+            rang_str = ", en tête des départements"
+        elif rang == nb_depts:
+            rang_str = ", dernier au classement"
+        else:
+            rang_str = f", {rang}e sur {nb_depts}"
+    phrase1 = f"Le département {dept_code} a une moyenne {_q_moy(moy_dept)} ({_n(moy_dept)}){rang_str}."
 
-    if taux_moyen is not None:
-        paras.append(
-            f"Le taux de réussite moyen consolidé sur les {nb_ue} UE du département "
-            f"est de {_p(taux_moyen)} ({_q_taux(taux_moyen)}). "
-            "C'est un indicateur de la fluidité globale du passage des étudiants au sein de vos filières."
-        )
-
-    if nb_diff > 0:
-        pct = nb_diff / nb_ue * 100 if nb_ue else 0
-        paras.append(
-            f"{nb_diff} UE sur {nb_ue} ({pct:.0f} %) présentent des difficultés structurelles."
-        )
-
-    if nb_depts > 1 and rang:
+    # Si le département n'est pas en tête, on dit l'écart avec le premier
+    # dans la même idée plutôt que dans un paragraphe séparé.
+    if nb_depts > 1 and rang and rang > 1:
         best_dept = classement[0]
-        if best_dept.get("departement") != dept_code:
-            gap = best_dept.get("score", 0) - moy_dept
-            paras.append(
-                f"L'écart avec le département le mieux classé "
-                f"({best_dept.get('departement')}, {_n(best_dept.get('score'))}) "
-                f"est de {gap:.2f} pts."
-            )
+        gap = best_dept.get("score", 0) - moy_dept
+        phrase1 += f" Le mieux classé ({best_dept.get('departement')}) fait {gap:.1f} pts de mieux."
 
-    corps = " ".join(paras)
-
-    points = []
-    if rang:
-        points.append(f"Rang inter-départements : {rang}/{nb_depts}")
-    points.append(f"Moyenne : {_n(moy_dept)}")
+    # Phrase 2 : taux de réussite consolidé + UE en difficulté, fusionnés
+    # (le taux prend son sens dès qu'on sait combien d'UE tirent vers le bas).
+    phrase2 = None
     if taux_moyen is not None:
-        points.append(f"Taux de réussite moyen : {_p(taux_moyen)}")
-    points.append(f"{nb_ue} UE  ·  {nb_diff} en difficulté")
+        lib_ue = "l'unique UE" if nb_ue == 1 else f"les {nb_ue} UE"
+        phrase2 = f"La réussite sur {lib_ue} du département est {_q_taux(taux_moyen)}"
+        if nb_diff > 0:
+            pct = nb_diff / nb_ue * 100 if nb_ue else 0
+            phrase2 += f", tirée vers le bas par {nb_diff} UE en difficulté ({pct:.0f} %)"
+        phrase2 += "."
+    elif nb_diff > 0:
+        pct = nb_diff / nb_ue * 100 if nb_ue else 0
+        phrase2 = f"{nb_diff} UE sur {nb_ue} ({pct:.0f} %) sont en difficulté."
+
+    corps = phrase1 + (" " + phrase2 if phrase2 else "")
 
     conseil = None
     if nb_diff > 3:
         conseil = (
-            f"Le département {dept_code} compte {nb_diff} UE en difficulté. "
-            "Une coordination entre enseignants pour harmoniser les niveaux d'exigence "
-            "et partager les bonnes pratiques pédagogiques est recommandée."
+            f"{nb_diff} UE sont en difficulté dans ce département. Une coordination entre "
+            "enseignants pour harmoniser les niveaux d'exigence et partager ce qui fonctionne "
+            "ailleurs ferait sans doute la différence."
         )
     elif moy_dept < SEUIL_REUSSITE:
         conseil = (
-            f"La moyenne département ({_n(moy_dept)}) est sous le seuil de réussite. "
-            "Un diagnostic approfondi des contenus et des modalités d'évaluation s'impose."
+            f"La moyenne du département ({_n(moy_dept)}) est sous le seuil. Ça mérite un vrai "
+            "diagnostic sur les contenus et les modalités d'évaluation, pas juste un ajustement."
         )
     elif rang == 1 and nb_depts > 1:
         conseil = (
-            f"Le département {dept_code} est le mieux classé. "
-            "Ses pratiques pédagogiques peuvent servir de référence "
-            "et être partagées avec les autres départements."
+            f"Le département {dept_code} est en tête. Ses pratiques pédagogiques valent le coup "
+            "d'être documentées et partagées avec les autres départements."
         )
 
     return {
         "niveau": _niv_moy(moy_dept),
         "titre": f"Département {dept_code}",
         "corps": corps,
-        "points": points,
         "conseil": conseil,
     }
 
 #  5. Étudiant
+
+def _mention(m: Optional[float]) -> Optional[str]:
+    """
+    Mention LMD classique, calculée à partir de la moyenne. Pas de
+    mention sous la moyenne (10/20) : on ne décerne pas de mention à un
+    parcours qui n'a pas atteint le seuil de réussite.
+    """
+    if m is None or m < 10:
+        return None
+    if m >= 18: return "Excellent"
+    if m >= 16: return "Très Bien"
+    if m >= 14: return "Bien"
+    if m >= 12: return "Assez Bien"
+    return "Passable"
 
 def interpreter_etudiant(s: Dict[str, Any]) -> Dict[str, Any]:
     moy  = s.get("moyenne_globale") or s.get("moyenne")
@@ -522,93 +464,72 @@ def interpreter_etudiant(s: Dict[str, Any]) -> Dict[str, Any]:
 
     pct_cred = cv / ct * 100 if ct else 0
 
-    paras = []
-    paras.append(
-        f"L'étudiant affiche une moyenne globale de {_n(moy)} ({_q_moy(moy)}) "
-        f"avec un taux de réussite de {_p(taux or 0)} sur l'ensemble des UE évaluées."
-    )
-
+    # Phrase 1 : moyenne + mention + réussite + progression dans le
+    # programme, fusionnées (les crédits validés donnent le contexte du
+    # chiffre de moyenne — un 13/20 ne veut pas dire la même chose à 30 %
+    # ou 90 % du parcours bouclé). La mention officielle (LMD) remplace
+    # le qualificatif _q_moy quand elle existe, pour éviter de dire deux
+    # choses légèrement différentes sur le même chiffre (ex: "excellente"
+    # à 16/20 alors que la mention officielle est encore "Très Bien").
+    mention = _mention(moy)
+    if mention:
+        phrase1 = f"L'étudiant a une moyenne de {_n(moy)} (mention {mention})"
+    else:
+        phrase1 = f"L'étudiant a une moyenne {_q_moy(moy)} ({_n(moy)})"
+    phrase1 += f" et une réussite {_q_taux(taux or 0)}"
     if ct:
-        paras.append(
-            f"Il a validé {cv} crédit(s) sur {ct} au total ({pct_cred:.0f} % du programme), "
-            + ("ce qui représente une progression très satisfaisante." if pct_cred >= 80
-               else "témoignant d'une progression correcte." if pct_cred >= 60
-               else "indiquant que des UE importantes restent à valider.")
-        )
+        if pct_cred >= 80:
+            phrase1 += f", avec {pct_cred:.0f} % du programme déjà validé"
+        elif pct_cred < 60:
+            phrase1 += f", mais seulement {pct_cred:.0f} % des crédits sont validés pour l'instant"
+        else:
+            phrase1 += f" ({pct_cred:.0f} % des crédits validés)"
+    phrase1 += "."
 
+    # Phrase 2 : la tendance dans le temps — c'est une info que la
+    # moyenne globale ne donne pas, donc ça reste une phrase à part,
+    # mais reformulée sans les tics ("On observe...", "indiquant que...").
+    phrase2 = None
     if len(sems) >= 2:
         moys_sems = [s.get("moyenne", 0) for s in sems]
         trend_tot = moys_sems[-1] - moys_sems[0]
         if trend_tot > 1.5:
-            paras.append(
-                f"On observe une dynamique de progression remarquable (+{trend_tot:.2f} pts). "
-                "C'est la marque d'un étudiant qui a su s'adapter aux exigences croissantes de son cursus."
-            )
+            phrase2 = f"Sa courbe est nettement ascendante (+{trend_tot:.2f} pts depuis le début) : il a su monter en puissance."
         elif trend_tot > 0.5:
-            paras.append(
-                f"La tendance est positive (+{trend_tot:.2f} pts), indiquant que l'étudiant "
-                "gagne en maturité et améliore ses méthodes de travail."
-            )
+            phrase2 = f"Sa courbe progresse doucement (+{trend_tot:.2f} pts) — bon signe pour la suite."
         elif trend_tot < -1.5:
-            paras.append(
-                f"La trajectoire est malheureusement descendante ({trend_tot:.2f} pts). "
-                "Ce recul suggère des difficultés croissantes ou une perte de motivation qui nécessite un point de situation."
-            )
+            phrase2 = f"Sa courbe redescend ({trend_tot:.2f} pts depuis le début), ce qui mérite qu'on en parle avec lui."
         elif abs(trend_tot) <= 0.5:
             moy_moy = sum(moys_sems) / len(moys_sems)
             if moy_moy < SEUIL_REUSSITE:
-                paras.append("Les résultats sont malheureusement stables sous le seuil de réussite. Un changement de méthode ou un soutien extérieur semble indispensable.")
+                phrase2 = "Le niveau reste stable, mais durablement sous la moyenne — il faudrait changer quelque chose."
             else:
-                paras.append("L'étudiant maintient un niveau constant tout au long de son parcours, témoignant d'une bonne régularité dans son investissement.")
+                phrase2 = "Le niveau reste stable d'un semestre à l'autre, sans à-coups."
 
-    corps = " ".join(paras)
-
-    # Points
-    points = []
-    points.append(f"Moyenne globale : {_n(moy)}  ·  Taux réussite : {_p(taux or 0)}")
-    if ct:
-        points.append(f"Crédits validés : {cv}/{ct} ({pct_cred:.0f} %)")
-
-    sems_critiques = [s for s in sems if s.get("moyenne", 10) < SEUIL_REUSSITE]
-    if sems_critiques:
-        nums = ", ".join(f"S{s['semestre']}" for s in sems_critiques)
-        points.append(f"Semestre(s) à surveiller : {nums}")
-
-    if sems:
-        best_sem = max(sems, key=lambda s: s.get("moyenne", 0))
-        points.append(f"Période de réussite maximale : Semestre {best_sem['semestre']} ({_n(best_sem.get('moyenne'))})")
+    corps = phrase1 + (" " + phrase2 if phrase2 else "")
 
     # Conseil
     conseil = None
     if moy < SEUIL_REUSSITE:
         conseil = (
-            f"La moyenne globale ({_n(moy)}) est inférieure au seuil de réussite ({SEUIL_REUSSITE}/20). "
-            "Un entretien de suivi avec le responsable pédagogique est recommandé. "
-            "L'étudiant devrait prioriser les UE à fort coefficient et solliciter "
-            "un accompagnement pour les UE les plus difficiles."
+            f"La moyenne ({_n(moy)}) est sous le seuil. Un point avec le responsable pédagogique "
+            "serait utile, en priorisant les UE à fort coefficient et un accompagnement sur "
+            "celles qui posent le plus de problème."
         )
     elif pct_cred < 60 and ct > 0:
         conseil = (
-            f"Avec {pct_cred:.0f} % des crédits validés, l'étudiant a encore "
-            f"{ct - cv} crédits à acquérir. "
-            "Il devrait identifier les UE non encore validées et établir un plan de progression."
+            f"Avec {pct_cred:.0f} % des crédits validés, il reste encore {ct - cv} crédits à "
+            "décrocher. Mieux vaut repérer vite les UE non validées et poser un plan clair pour les rattraper."
         )
     elif moy >= 14 and pct_cred >= 80:
-        conseil = (
-            "Excellent parcours. Cet étudiant est un candidat potentiel "
-            "pour des programmes d'excellence, de mobilité internationale ou de stage long."
-        )
+        conseil = "Très bon parcours — un profil à pousser vers l'excellence, la mobilité internationale ou un stage long."
     elif moy >= 12:
-        conseil = (
-            "Parcours satisfaisant. Maintenir la régularité dans le travail "
-            "permettra de consolider les résultats et d'améliorer les UE encore fragiles."
-        )
+        conseil = "Parcours satisfaisant. Garder cette régularité devrait suffire à consolider les résultats et lisser les UE encore fragiles."
 
     return {
         "niveau": _niv_moy(moy),
         "titre": _titre_etudiant(moy, taux or 0),
         "corps": corps,
-        "points": points,
         "conseil": conseil,
     }
 
@@ -622,14 +543,19 @@ def _titre_etudiant(m, t):
 
 
 def _vide(titre: str, corps: str) -> Dict[str, Any]:
-    return {"niveau": "info", "titre": titre, "corps": corps, "points": [], "conseil": None}
+    return {"niveau": "info", "titre": titre, "corps": corps, "conseil": None}
 
 
-def _contexte_filtres(data: Dict[str, Any]) -> str:
+def _contexte_filtres(data: Dict[str, Any], exclude: Optional[str] = None) -> str:
     """
     Génère une phrase décrivant les filtres actifs pour que l'interprétation
     mentionne explicitement le périmètre analysé.
-    Ex: "Pour l'année 2023-24, le semestre 2, la filière GI"
+    Ex: "Pour l'année 2023-24, le semestre 2 — "
+
+    `exclude` permet d'omettre une clé déjà utilisée comme sujet dans la
+    phrase d'ouverture de la fonction appelante (ex: interpreter_filiere
+    nomme déjà la filière dans sa propre phrase, pas besoin de la répéter
+    ici aussi).
     """
     parties = []
     LABELS = {
@@ -642,6 +568,8 @@ def _contexte_filtres(data: Dict[str, Any]) -> str:
         "niveau":         "le niveau",
     }
     for cle, label in LABELS.items():
+        if cle == exclude:
+            continue
         val = data.get(cle)
         if val and str(val).strip():
             vals = [v.strip() for v in str(val).split(",") if v.strip()]

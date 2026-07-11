@@ -160,7 +160,7 @@ def apply_filters_to_df(
     if semestres: df_f = df_f[df_f["semestre"].astype(str).isin(semestres)]
     
     cohortes = _to_list(cohorte)
-    if cohortes: df_f = df_f[df_f["cohorte"].isin(cohortes)]
+    if cohortes: df_f = df_f[df_f["cohorte"].astype(str).isin(cohortes)]
     
     sexes = [s.upper() for s in _to_list(sexe) if s.upper() in {"M", "F"}]
     if sexes: df_f = df_f[df_f["sexe"].isin(sexes)]

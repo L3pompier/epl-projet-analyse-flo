@@ -233,7 +233,7 @@ const ui = {
 
     //  UPLOAD MODAL
     _showUploadSummary(result) {
-        const zone = document.getElementById('upload-progress');
+        const zone = document.getElementById('upload-result');
         if (!zone) { this.toast(`Import : ${result.added} ajoutées, ${result.updated} mises à jour`, 'success', 10000); return; }
 
         const hasWarnings = result.warnings && result.warnings.length > 0;
@@ -243,31 +243,31 @@ const ui = {
                </div>`
             : '';
 
+        zone.classList.remove('hidden', 'bg-amber-500/10', 'border-amber-500/20', 'bg-green-500/10', 'border-green-500/20');
+        zone.classList.add(...(hasWarnings ? ['bg-amber-500/10', 'border-amber-500/20'] : ['bg-green-500/10', 'border-green-500/20']));
         zone.innerHTML = `
-            <div class="rounded-lg p-4 ${hasWarnings ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-green-500/10 border border-green-500/20'}">
-                <div class="flex items-center gap-2 mb-2">
-                    <i data-lucide="${hasWarnings ? 'alert-triangle' : 'check-circle'}"
-                       class="w-4 h-4 ${hasWarnings ? 'text-amber-400' : 'text-green-400'} shrink-0"></i>
-                    <span class="text-sm font-semibold ${hasWarnings ? 'text-amber-300' : 'text-green-300'}">
-                        Import terminé
-                    </span>
-                </div>
-                <div class="grid grid-cols-3 gap-2 text-center mb-2">
-                    <div class="bg-white/5 rounded p-2">
-                        <div class="text-lg font-bold text-green-400">${result.added}</div>
-                        <div class="text-[10px] text-gray-500">Ajoutées</div>
-                    </div>
-                    <div class="bg-white/5 rounded p-2">
-                        <div class="text-lg font-bold text-accent">${result.updated}</div>
-                        <div class="text-[10px] text-gray-500">Mises à jour</div>
-                    </div>
-                    <div class="bg-white/5 rounded p-2">
-                        <div class="text-lg font-bold text-gray-300">${result.total.toLocaleString()}</div>
-                        <div class="text-[10px] text-gray-500">Total lignes</div>
-                    </div>
-                </div>
-                ${warnHtml}
+            <div class="flex items-center gap-2 mb-2">
+                <i data-lucide="${hasWarnings ? 'alert-triangle' : 'check-circle'}"
+                   class="w-4 h-4 ${hasWarnings ? 'text-amber-400' : 'text-green-400'} shrink-0"></i>
+                <span class="text-sm font-semibold ${hasWarnings ? 'text-amber-300' : 'text-green-300'}">
+                    Import terminé
+                </span>
             </div>
+            <div class="grid grid-cols-3 gap-2 text-center mb-2">
+                <div class="bg-white/5 rounded p-2">
+                    <div class="text-lg font-bold text-green-400">${result.added}</div>
+                    <div class="text-[10px] text-gray-500">Ajoutées</div>
+                </div>
+                <div class="bg-white/5 rounded p-2">
+                    <div class="text-lg font-bold text-accent">${result.updated}</div>
+                    <div class="text-[10px] text-gray-500">Mises à jour</div>
+                </div>
+                <div class="bg-white/5 rounded p-2">
+                    <div class="text-lg font-bold text-gray-300">${result.total.toLocaleString()}</div>
+                    <div class="text-[10px] text-gray-500">Total lignes</div>
+                </div>
+            </div>
+            ${warnHtml}
             <button onclick="ui.toggleUploadModal()"
                 class="mt-3 w-full py-2 text-xs font-medium rounded-lg bg-accent/20 border border-accent/30 text-accent hover:bg-accent/30 transition-colors">
                 Fermer
@@ -279,9 +279,35 @@ const ui = {
         const modal = document.getElementById('upload-modal');
         modal.classList.toggle('hidden');
         if (!modal.classList.contains('hidden')) {
+            this._resetUploadModal();
             this._setupUploadHandlers();
             lucide.createIcons();
         }
+    },
+
+    /**
+     * Remet la modale dans son état initial à chaque ouverture : la
+     * dropzone redevient visible, la barre de progression et le résumé
+     * du précédent import sont masqués et vidés, et l'input file est
+     * réinitialisé. Sans ce reset, le résumé du 1er upload reste affiché
+     * et — surtout — _handleUpload() référence des nœuds DOM
+     * (upload-filename, upload-status-text, upload-progress-bar) qui
+     * peuvent avoir été détruits par un innerHTML précédent, ce qui
+     * provoque une exception silencieuse avant même l'envoi de la
+     * requête au 2e upload.
+     */
+    _resetUploadModal() {
+        const dropzone = document.getElementById('upload-dropzone');
+        const progress = document.getElementById('upload-progress');
+        const resultDiv = document.getElementById('upload-result');
+        const progressBar = document.getElementById('upload-progress-bar');
+        const fileInput = document.getElementById('upload-file-input');
+
+        if (dropzone) dropzone.classList.remove('hidden');
+        if (progress) progress.classList.add('hidden');
+        if (resultDiv) { resultDiv.classList.add('hidden'); resultDiv.innerHTML = ''; }
+        if (progressBar) { progressBar.style.width = '0%'; progressBar.style.background = 'var(--accent)'; }
+        if (fileInput) fileInput.value = '';
     },
 
     _setupUploadHandlers() {
@@ -294,6 +320,10 @@ const ui = {
         dropzone.onclick = () => fileInput.click();
         fileInput.onchange = (e) => {
             if (e.target.files.length > 0) this._handleUpload(e.target.files[0]);
+            // Réinitialiser la valeur pour permettre de resélectionner le
+            // même fichier (sinon le navigateur ne redéclenche pas
+            // 'change' si la sélection ne "change" pas).
+            fileInput.value = '';
         };
 
         dropzone.ondragover = (e) => { e.preventDefault(); dropzone.classList.add('drag-over'); };
@@ -306,18 +336,21 @@ const ui = {
     },
 
     async _handleUpload(file) {
+        const dropzone = document.getElementById('upload-dropzone');
         const progress = document.getElementById('upload-progress');
         const progressBar = document.getElementById('upload-progress-bar');
         const filename = document.getElementById('upload-filename');
         const statusText = document.getElementById('upload-status-text');
         const resultDiv = document.getElementById('upload-result');
 
+        if (dropzone) dropzone.classList.add('hidden');
         progress.classList.remove('hidden');
         resultDiv.classList.add('hidden');
         filename.textContent = file.name;
         statusText.textContent = 'Envoi en cours...';
         statusText.className = 'text-xs font-medium text-accent';
         progressBar.style.width = '30%';
+        progressBar.style.background = 'var(--accent)';
 
         try {
             progressBar.style.width = '70%';

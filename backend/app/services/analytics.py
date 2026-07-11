@@ -220,7 +220,7 @@ def calculer_parcours_etudiant(etudiant_df: pd.DataFrame, anonymat_id: str, df_g
     return {
         **vide_etudiant(anonymat_id),
         "carte": _first("carte"), "nom_prenoms": _first("nom_prenoms"),
-        "sexe": _first("sexe"), "cohorte": int(coh_val) if coh_val is not None else None,
+        "sexe": _first("sexe"), "cohorte": int(pd.to_numeric(coh_val, errors="coerce")) if coh_val is not None else None,
         "filiere": _first("filiere"),
         "parcours": sorted(parcours, key=lambda x: x["semestre"]),
         "moyenne_globale": moy_globale,

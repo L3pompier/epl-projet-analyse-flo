@@ -20,7 +20,6 @@ Outil web de visualisation et d'analyse statistique des résultats académiques.
 
 ```bash
 git clone https://github.com/L3pompier/epl-projet-analyse-flo.git
-cd GoodAdmin
 ```
 
 ---
